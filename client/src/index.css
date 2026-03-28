@@ -1,0 +1,296 @@
+/* Fonts */
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+/* Tailwind Start */
+@import "tailwindcss";
+
+/* Tailwind v4 default dark mode is media-based; make `dark:` respond to `.dark` class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+	:root {
+		color-scheme: light;
+
+		/* App design tokens (light) */
+		--app-bg: #fafafa; /* zinc-50 */
+		--app-surface: #ffffff; /* white */
+		--app-surface-2: #f4f4f5; /* zinc-100 */
+		--app-surface-3: #ededf0; /* slightly deeper than surface-2 */
+		--app-border: #e4e4e7; /* zinc-200 */
+		--app-text: #18181b; /* zinc-900 */
+		--app-muted: #52525b; /* zinc-600 */
+		--app-subtle: #71717a; /* zinc-500 */
+		--app-accent: #2563eb; /* blue-600 */
+
+		--app-tooltip-bg: var(--app-surface);
+		--app-tooltip-text: var(--app-text);
+		--app-tooltip-border: var(--app-border);
+
+		--app-cover-overlay: rgba(0, 0, 0, 0.2);
+
+		/* Heat map tokens (light) */
+		--app-heat-0: #ebedf0;
+		--app-heat-1: #9be9a8;
+		--app-heat-2: #40c463;
+		--app-heat-3: #30a14e;
+		--app-heat-4: #216e39;
+
+		/* Structure */
+		--app-radius-card: 0px;
+		--app-radius-chip: 0px;
+		--app-radius-control: 0px;
+		--app-radius-float: 0px;
+
+		/* Shadows kept subtle for a more "structural" vibe */
+		--app-shadow: 0 1px 0 rgba(0, 0, 0, 0.04),
+			0 10px 24px rgba(0, 0, 0, 0.04);
+		--app-shadow-hover: 0 1px 0 rgba(0, 0, 0, 0.06),
+			0 14px 34px rgba(0, 0, 0, 0.05);
+
+		/* Liquid glass tokens (light) */
+		--app-glass-bg: linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.22) 0%,
+			rgba(255, 255, 255, 0.06) 40%,
+			rgba(255, 255, 255, 0.12) 100%
+		);
+		--app-glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+			0 2px 0 0 rgba(255, 255, 255, 0.55) inset,
+			0 -1px 0 0 rgba(0, 0, 0, 0.08) inset, 0 8px 32px rgba(0, 0, 0, 0.18),
+			0 2px 8px rgba(0, 0, 0, 0.1);
+		--app-glass-glint: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.9) 30%,
+			rgba(255, 255, 255, 0.9) 70%,
+			transparent 100%
+		);
+		--app-glass-refract: radial-gradient(
+			ellipse 80% 40% at 50% 0%,
+			rgba(255, 255, 255, 0.15) 0%,
+			transparent 70%
+		);
+	}
+
+	.dark {
+		color-scheme: dark;
+
+		/* App design tokens (dark) */
+		--app-bg: #09090b; /* zinc-950 */
+		--app-surface: #0f0f12; /* near-black, softer than pure */
+		--app-surface-2: #18181b; /* zinc-900 */
+		--app-surface-3: #1f1f23;
+		--app-border: #27272a; /* zinc-800 */
+		--app-text: #fafafa; /* zinc-50 */
+		--app-muted: #a1a1aa; /* zinc-400 */
+		--app-subtle: #71717a; /* zinc-500 */
+		--app-accent: #60a5fa; /* blue-400 */
+
+		--app-tooltip-bg: color-mix(in oklab, var(--app-surface-2) 92%, black);
+		--app-tooltip-text: var(--app-text);
+		--app-tooltip-border: var(--app-border);
+
+		--app-cover-overlay: rgba(0, 0, 0, 0.42);
+
+		/* Heat map tokens (dark) */
+		--app-heat-0: #161b22;
+		--app-heat-1: #0e4429;
+		--app-heat-2: #006d32;
+		--app-heat-3: #26a641;
+		--app-heat-4: #39d353;
+
+		/* Structure */
+		--app-radius-card: 0px;
+		--app-radius-chip: 0px;
+		--app-radius-control: 0px;
+		--app-radius-float: 0px;
+
+		--app-shadow: 0 1px 0 rgba(0, 0, 0, 0.55),
+			0 18px 50px rgba(0, 0, 0, 0.35);
+		--app-shadow-hover: 0 1px 0 rgba(0, 0, 0, 0.6),
+			0 22px 60px rgba(0, 0, 0, 0.4);
+
+		/* Liquid glass tokens (dark) */
+		--app-glass-bg: linear-gradient(
+			135deg,
+			rgba(255, 255, 255, 0.12) 0%,
+			rgba(255, 255, 255, 0.04) 40%,
+			rgba(255, 255, 255, 0.08) 100%
+		);
+		--app-glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+			0 2px 0 0 rgba(255, 255, 255, 0.22) inset,
+			0 -1px 0 0 rgba(0, 0, 0, 0.35) inset, 0 16px 48px rgba(0, 0, 0, 0.55),
+			0 6px 18px rgba(0, 0, 0, 0.35);
+		--app-glass-glint: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.5) 30%,
+			rgba(255, 255, 255, 0.5) 70%,
+			transparent 100%
+		);
+		--app-glass-refract: radial-gradient(
+			ellipse 80% 40% at 50% 0%,
+			rgba(255, 255, 255, 0.08) 0%,
+			transparent 70%
+		);
+	}
+
+	html,
+	body {
+		height: 100%;
+	}
+
+	html {
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
+	}
+
+	* {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	body {
+		font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+			"Segoe UI", Roboto, Arial, "Noto Sans", "Apple Color Emoji",
+			"Segoe UI Emoji";
+		background-color: var(--app-bg);
+		color: var(--app-text);
+		line-height: 1.45;
+	}
+
+	.font-mono {
+		font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+			Consolas, "Liberation Mono", "Courier New", monospace;
+	}
+
+	::selection {
+		background-color: color-mix(in oklab, var(--app-accent) 24%, transparent);
+		color: var(--app-text);
+	}
+
+	:focus-visible {
+		outline: 2px solid color-mix(in oklab, var(--app-accent) 72%, white);
+		outline-offset: 2px;
+	}
+
+	/* Compact, native-feeling scale on phones */
+	@media (max-width: 640px) {
+		:root {
+			font-size: clamp(13.8px, 3.65vw, 15px);
+		}
+
+		body {
+			line-height: 1.4;
+		}
+	}
+
+	/* Calendar library text/tooltip polish */
+	.react-activity-calendar {
+		color: var(--app-muted);
+	}
+
+	.react-activity-calendar__tooltip {
+		width: max-content;
+		max-width: calc(100vw - 20px);
+		background-color: var(--app-tooltip-bg);
+		color: var(--app-tooltip-text);
+		border: 1px solid var(--app-tooltip-border);
+		box-shadow: var(--app-shadow);
+		padding: 0.35rem 0.55rem;
+		border-radius: var(--app-radius-chip);
+		font-size: 13px;
+	}
+
+	.react-activity-calendar__tooltip[data-color-scheme="dark"] {
+		background-color: var(--app-tooltip-bg);
+		color: var(--app-tooltip-text);
+		border-color: var(--app-tooltip-border);
+	}
+
+	.react-activity-calendar__tooltip-arrow {
+		fill: var(--app-tooltip-bg);
+	}
+}
+
+@layer components {
+	.app-shell {
+		background-color: var(--app-bg);
+		color: var(--app-text);
+		transition: background-color 220ms ease, color 220ms ease;
+	}
+
+	html.theme-switching body,
+	html.theme-switching .app-card,
+	html.theme-switching .app-chip,
+	html.theme-switching button,
+	html.theme-switching a,
+	html.theme-switching input,
+	html.theme-switching textarea,
+	html.theme-switching select {
+		transition: background-color 220ms ease, color 220ms ease,
+			border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+	}
+
+	.app-card {
+		background-color: var(--app-surface);
+		border: 1px solid var(--app-border);
+		border-radius: var(--app-radius-card);
+		box-shadow: var(--app-shadow);
+		transition: background-color 220ms ease, border-color 220ms ease,
+			box-shadow 220ms ease, transform 220ms ease;
+	}
+
+	.app-chip {
+		background-color: color-mix(in oklab, var(--app-surface-2) 92%, transparent);
+		border: 1px solid var(--app-border);
+		border-radius: var(--app-radius-chip);
+		transition: background-color 200ms ease, border-color 200ms ease,
+			box-shadow 200ms ease, transform 200ms ease;
+	}
+
+	@media (hover: hover) {
+		.app-card:hover {
+			box-shadow: var(--app-shadow-hover);
+			border-color: color-mix(in oklab, var(--app-border) 72%, var(--app-text));
+		}
+
+		.app-chip:hover {
+			background-color: color-mix(
+				in oklab,
+				var(--app-surface-3) 94%,
+				transparent
+			);
+			border-color: color-mix(in oklab, var(--app-border) 72%, var(--app-text));
+		}
+	}
+
+	.app-card:active,
+	.app-chip:active {
+		transform: none;
+	}
+}
+
+@layer utilities {
+	@media (prefers-reduced-motion: reduce) {
+		* {
+			scroll-behavior: auto !important;
+			transition-duration: 0ms !important;
+			animation-duration: 0ms !important;
+		}
+	}
+
+	@keyframes app-fade-up {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.animate-app-fade-up {
+		animation: app-fade-up 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+}

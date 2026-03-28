@@ -1,0 +1,26 @@
+{
+	"name": "devportfolio",
+	"version": "1.0.0",
+	"description": "",
+	"homepage": "https://github.com/DeuxLim/deux-dev-portfolio#readme",
+	"bugs": {
+		"url": "https://github.com/DeuxLim/deux-dev-portfolio/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/DeuxLim/deux-dev-portfolio.git"
+	},
+	"license": "ISC",
+	"author": "",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"server": "cd server && npm run dev",
+		"client": "cd client && npm run dev",
+		"dev": "concurrently \"npm run server\" \"npm run client\""
+	},
+	"devDependencies": {
+		"concurrently": "^9.2.1"
+	}
+}
