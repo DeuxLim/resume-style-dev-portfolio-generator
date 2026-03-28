@@ -13,12 +13,16 @@
 	"license": "ISC",
 	"author": "",
 	"type": "module",
+	"private": true,
+	"workspaces": ["client", "server"],
 	"main": "index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
 		"server": "cd server && npm run dev",
 		"client": "cd client && npm run dev",
-		"dev": "concurrently \"npm run server\" \"npm run client\""
+		"dev": "concurrently \"npm run server\" \"npm run client\"",
+		"build": "npm --workspace client run build",
+		"lint": "npm --workspace client run lint"
 	},
 	"devDependencies": {
 		"concurrently": "^9.2.1"

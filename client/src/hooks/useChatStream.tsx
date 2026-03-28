@@ -8,7 +8,7 @@ export function useChatStream() {
 	const [isStreaming, setIsStreaming] = useState(false);
 	const lastMessageRef = useRef<HTMLDivElement | null>(null);
 
-	const sendMessage = async (text: string) => {
+	const sendMessage = async (text: string, username: string) => {
 		if (!text.trim() || isStreaming) return;
 
 		// 1. Add user message
@@ -24,13 +24,14 @@ export function useChatStream() {
 
 		try {
 			const response = await fetch(
-				`${import.meta.env.VITE_SERVER_URL}/chat/send-message`,
+				`${import.meta.env.VITE_API_BASE_URL || "/api"}/chat/send-message`,
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
+						username,
 						newMessage: userMessage,
-						history: messages, // history BEFORE this message
+						history: messages,
 					}),
 				},
 			);

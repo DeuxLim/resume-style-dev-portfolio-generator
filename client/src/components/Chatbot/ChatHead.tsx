@@ -4,9 +4,16 @@ import useChat from "@/context/Chat/useChat";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
 
-export default function ChatHead() {
+export default function ChatHead({
+	displayName,
+	avatarUrl,
+}: {
+	displayName: string;
+	avatarUrl?: string;
+}) {
 	const { setIsChatOpen } = useChat();
 	const prefersReducedMotion = usePrefersReducedMotion();
+	const avatar = avatarUrl || me;
 
 	return (
 		<motion.button
@@ -26,7 +33,7 @@ export default function ChatHead() {
 			<div className="relative size-14 md:size-16">
 				{/* Avatar */}
 				<div className="size-14 md:size-16 rounded-full overflow-hidden border border-(--app-border)">
-					<img src={me} alt="" />
+					<img src={avatar} alt={displayName} />
 				</div>
 
 				{/* Active Status */}
@@ -44,7 +51,7 @@ export default function ChatHead() {
 					className="group-hover:flex hidden rounded-none shadow-[0_2px_10px_-2px_rgba(0,0,0,0.18)] absolute -top-3 -left-40 w-36 bg-(--app-surface) text-(--app-text) border border-(--app-border)"
 				>
 					<div className="flex flex-col p-3 text-sm">
-						<div className="font-semibold">Deux Lim</div>
+						<div className="font-semibold">{displayName}</div>
 						<div className="font-light text-(--app-muted)">
 							Hi, Let's chat!
 						</div>

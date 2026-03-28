@@ -1,26 +1,21 @@
 import { createBrowserRouter } from "react-router";
 import PortfolioLayout from "./layouts/PortfolioLayout";
-import Home from "@/pages/Home";
-import ChatProvider from "./context/Chat/ChatProvider";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
-const queryClient = new QueryClient();
+import LandingPage from "@/pages/LandingPage";
+import LoginPage from "@/pages/LoginPage";
+import SignupPage from "@/pages/SignupPage";
+import DashboardPage from "@/pages/DashboardPage";
+import PortfolioPage from "@/pages/PortfolioPage";
 
 const routes = createBrowserRouter([
 	{
 		path: "/",
-		element: (
-			<QueryClientProvider client={queryClient}>
-				<ChatProvider>
-					<PortfolioLayout />
-				</ChatProvider>
-			</QueryClientProvider>
-		),
+		element: <PortfolioLayout />,
 		children: [
-			{
-				index: true,
-				Component: Home,
-			},
+			{ index: true, Component: LandingPage },
+			{ path: "login", Component: LoginPage },
+			{ path: "signup", Component: SignupPage },
+			{ path: "dashboard", Component: DashboardPage },
+			{ path: ":username", Component: PortfolioPage },
 		],
 	},
 ]);

@@ -10,18 +10,27 @@ import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
 import ReactMarkdown from "react-markdown";
 
-export default function ChatBox() {
+export default function ChatBox({
+	username,
+	displayName,
+	avatarUrl,
+}: {
+	username: string;
+	displayName: string;
+	avatarUrl?: string;
+}) {
 	const { setIsChatOpen } = useChat();
 	const { messages, isStreaming, sendMessage, lastMessageRef } =
 		useChatStream();
 	const [input, setInput] = useState("");
 	const prefersReducedMotion = usePrefersReducedMotion();
+	const avatar = avatarUrl || me;
 
 	const handleSend = async () => {
 		if (!input.trim()) return;
 		const text = input;
 		setInput(""); // clear input immediately
-		await sendMessage(text);
+		await sendMessage(text, username);
 	};
 
 	useEffect(() => {
@@ -57,9 +66,9 @@ export default function ChatBox() {
 				<div className="w-full h-12 border-b border-(--app-border)">
 					<div className="flex px-4 h-full items-center justify-center gap-2">
 						<div className="size-8 rounded-none overflow-clip border border-(--app-border)">
-							<img src={me} alt="" className="object-cover" />
+							<img src={avatar} alt={displayName} className="object-cover" />
 						</div>
-						<div className="flex-1 font-medium">Deux Lim</div>
+						<div className="flex-1 font-medium">{displayName}</div>
 						<div className="flex gap-2 items-center justify-center">
 							<button
 								type="button"
@@ -79,13 +88,13 @@ export default function ChatBox() {
 						<div className="flex items-end gap-2">
 							<div className="w-6 shrink-0 h-full flex items-end">
 								<img
-									src={me}
+									src={avatar}
 									className="size-6 rounded-none"
-									alt=""
+									alt={displayName}
 								/>
 							</div>
 							<div className="bg-(--app-surface-2) border border-(--app-border) px-4 py-2 rounded-none max-w-[80%] text-[13px] sm:text-sm">
-								<ChatIntro />
+								<ChatIntro displayName={displayName} />
 							</div>
 						</div>
 					</div>
@@ -102,9 +111,9 @@ export default function ChatBox() {
 										>
 											<div className="w-6 shrink-0 h-full flex items-end">
 												<img
-													src={me}
+													src={avatar}
 													className="size-6 rounded-none border border-(--app-border)"
-													alt=""
+													alt={displayName}
 												/>
 											</div>
 											<div className="bg-(--app-surface-2) border border-(--app-border) px-4 py-2 rounded-none max-w-[80%] text-[13px] sm:text-sm">

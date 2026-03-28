@@ -1,18 +1,10 @@
-import express from "express";
-import "dotenv/config";
-import cors from "cors";
-import { corsOptions } from "./config/cors.js";
-import registerRoutes from "./routes/routes.js";
+import { loadEnv } from "./config/env.js";
+import createApp from "./createApp.js";
 
-const app = express();
+loadEnv();
+
 const port = 3000;
-
-/* Middlewares */
-app.use(cors(corsOptions));
-
-app.use(express.json());
-
-registerRoutes(app);
+const app = createApp();
 
 app.listen(port, () => {
 	console.log(`DeuxDevPortfolio listening on port ${port}`);
