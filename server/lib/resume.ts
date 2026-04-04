@@ -374,7 +374,7 @@ export const renderResumePdf = (
 
 	const doc = new PDFDocument({
 		size: "LETTER",
-		margins: { top: 24, bottom: 24, left: 24, right: 24 },
+		margins: { top: 36, bottom: 36, left: 36, right: 36 },
 		info: { Title: `${content.header.fullName || "Resume"} Resume` },
 	});
 	const pageWidth =
