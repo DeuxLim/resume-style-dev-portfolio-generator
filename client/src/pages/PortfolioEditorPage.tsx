@@ -2162,6 +2162,118 @@ export default function PortfolioEditorPage() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
+							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
+								Drag from each card header to reposition blocks. Content inside cards
+								stays scrollable if it exceeds current card size.
+							</div>
+							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
+								If move or resize is constrained, a hint appears after drop. Resize from
+								the bottom-right corner.
+							</div>
+
+							<div className="flex flex-wrap gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										const snapped = canvasLayout.map((item) => ({
+											...item,
+											w: snapToAllowedSpan(item.w),
+										}));
+										setCanvasLayout(snapped);
+										commitGridLayoutToPortfolio(snapped);
+										setLayoutFeedback("Card widths snapped to supported 4/6/8/12 steps.");
+									}}
+								>
+									Snap widths to 4/6/8/12
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setPortfolio((current) =>
+											current
+												? {
+														...current,
+														layout: {
+															sectionOrder: [...defaultPortfolioLayout.sectionOrder],
+															sectionSpans: { ...defaultPortfolioLayout.sectionSpans },
+															sectionHeights: { ...defaultPortfolioLayout.sectionHeights },
+														},
+													}
+												: current,
+										);
+										setPendingAutoFit(true);
+										setLayoutFeedback(
+											"Reset to defaults, then auto-fit heights to content.",
+										);
+									}}
+								>
+									Reset to default layout
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setPendingAutoFit(true);
+										setLayoutFeedback("Auto-fitting block heights to content...");
+									}}
+								>
+									Auto-fit heights
+								</Button>
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									onClick={() => {
+										commitGridLayoutToPortfolio(canvasLayout);
+										setLayoutFeedback("Layout synced from canvas.");
+									}}
+								>
+									Apply current canvas
+								</Button>
+							</div>
+
+							{getHiddenSections(portfolio).length > 0 && (
+								<div className="space-y-2 rounded-lg bg-muted/35 px-3 py-2">
+									<div className="text-xs text-muted-foreground">
+										Hidden blocks
+									</div>
+									<div className="flex flex-wrap gap-2">
+										{getHiddenSections(portfolio).map((sectionKey) => (
+											<Button
+												key={sectionKey}
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => addSectionBackToLayout(sectionKey)}
+											>
+												Add {SECTION_META[sectionKey].title}
+											</Button>
+										))}
+									</div>
+								</div>
+							)}
+
+							<Card className="shadow-none">
+								<CardHeader>
+									<CardTitle className="text-base">Custom Section Editor</CardTitle>
+									<CardDescription>
+										Create and edit custom sections directly from the Layout tab.
+									</CardDescription>
+								</CardHeader>
+								<CardContent>{renderCustomSectionsEditor()}</CardContent>
+							</Card>
+
+							{layoutFeedback && (
+								<div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+									{layoutFeedback}
+								</div>
+							)}
+
 							<div
 								ref={layoutContainerRef}
 								className="overflow-hidden rounded-xl bg-muted/20"
@@ -2264,115 +2376,6 @@ export default function PortfolioEditorPage() {
 									))}
 								</GridLayout>
 							</div>
-							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
-								Drag from the header area of each card. Content inside the card stays
-								scrollable if it exceeds the current card size.
-							</div>
-							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
-								If a move or resize is constrained, you will see a hint after drop.
-								Resize from the bottom-right corner to change card width.
-							</div>
-							{getHiddenSections(portfolio).length > 0 && (
-								<div className="space-y-2 rounded-lg bg-muted/35 px-3 py-2">
-									<div className="text-xs text-muted-foreground">
-										Hidden blocks
-									</div>
-									<div className="flex flex-wrap gap-2">
-										{getHiddenSections(portfolio).map((sectionKey) => (
-											<Button
-												key={sectionKey}
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={() => addSectionBackToLayout(sectionKey)}
-											>
-												Add {SECTION_META[sectionKey].title}
-											</Button>
-										))}
-									</div>
-								</div>
-							)}
-
-							<div className="flex flex-wrap gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => {
-										const snapped = canvasLayout.map((item) => ({
-											...item,
-											w: snapToAllowedSpan(item.w),
-										}));
-										setCanvasLayout(snapped);
-										commitGridLayoutToPortfolio(snapped);
-										setLayoutFeedback("Card widths snapped to supported 4/6/8/12 steps.");
-									}}
-								>
-									Snap widths to 4/6/8/12
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => {
-										setPortfolio((current) =>
-											current
-												? {
-														...current,
-														layout: {
-															sectionOrder: [...defaultPortfolioLayout.sectionOrder],
-															sectionSpans: { ...defaultPortfolioLayout.sectionSpans },
-															sectionHeights: { ...defaultPortfolioLayout.sectionHeights },
-														},
-													}
-												: current,
-										);
-										setPendingAutoFit(true);
-										setLayoutFeedback(
-											"Reset to defaults, then auto-fit heights to content.",
-										);
-									}}
-								>
-									Reset to default layout
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => {
-										setPendingAutoFit(true);
-										setLayoutFeedback("Auto-fitting block heights to content...");
-									}}
-								>
-									Auto-fit heights
-								</Button>
-								<Button
-									type="button"
-									variant="secondary"
-									size="sm"
-									onClick={() => {
-										commitGridLayoutToPortfolio(canvasLayout);
-										setLayoutFeedback("Layout synced from canvas.");
-									}}
-								>
-									Apply current canvas
-								</Button>
-							</div>
-							<Card className="shadow-none">
-								<CardHeader>
-									<CardTitle className="text-base">Custom Section Editor</CardTitle>
-									<CardDescription>
-										Create and edit custom sections directly from the Layout tab.
-									</CardDescription>
-								</CardHeader>
-								<CardContent>{renderCustomSectionsEditor()}</CardContent>
-							</Card>
-
-							{layoutFeedback && (
-								<div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
-									{layoutFeedback}
-								</div>
-							)}
 						</CardContent>
 					</Card>
 				</TabsContent>
