@@ -25,6 +25,7 @@ type ChatPortfolioRow = RowDataPacket & {
 	tech_categories_json: string | null;
 	projects_json: string | null;
 	custom_sections_json: string | null;
+	layout_json: string | null;
 	chat_enabled: number;
 	gemini_api_key: string | null;
 };
@@ -54,6 +55,7 @@ const getChatPortfolio = async (username: string) => {
 				p.tech_categories_json,
 				p.projects_json,
 				p.custom_sections_json,
+				p.layout_json,
 				p.chat_enabled,
 				p.gemini_api_key
 			FROM portfolios p

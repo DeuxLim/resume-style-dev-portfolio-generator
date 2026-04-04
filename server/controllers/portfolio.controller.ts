@@ -2,8 +2,15 @@ import type { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { buildStarterPortfolio } from "../../shared/defaults/portfolio.js";
-import type { EditablePortfolio } from "../../shared/types/portfolio.types.js";
+import {
+	buildStarterPortfolio,
+	defaultPortfolioLayout,
+} from "../../shared/defaults/portfolio.js";
+import type {
+	EditablePortfolio,
+	PortfolioSectionKey,
+	PortfolioSectionSpan,
+} from "../../shared/types/portfolio.types.js";
 import {
 	getUploadsRoot,
 	toPublicAvatarPath,
@@ -23,6 +30,52 @@ import {
 
 const normalizeArray = (value: unknown) =>
 	Array.isArray(value) ? value : [];
+
+const validSectionOrder = new Set<PortfolioSectionKey>(
+	defaultPortfolioLayout.sectionOrder,
+);
+
+const normalizeSectionOrder = (value: unknown): PortfolioSectionKey[] => {
+	const incoming = normalizeArray(value)
+		.map((entry) => String(entry).trim() as PortfolioSectionKey)
+		.filter((entry): entry is PortfolioSectionKey => validSectionOrder.has(entry));
+
+	const deduped: PortfolioSectionKey[] = [];
+	for (const section of incoming) {
+		if (!deduped.includes(section)) {
+			deduped.push(section);
+		}
+	}
+
+	for (const section of defaultPortfolioLayout.sectionOrder) {
+		if (!deduped.includes(section)) {
+			deduped.push(section);
+		}
+	}
+
+	return deduped;
+};
+
+const allowedSpans = new Set<PortfolioSectionSpan>([4, 6, 8, 12]);
+
+const normalizeSectionSpans = (
+	value: unknown,
+): Partial<Record<PortfolioSectionKey, PortfolioSectionSpan>> => {
+	const base = { ...defaultPortfolioLayout.sectionSpans };
+	const input =
+		value && typeof value === "object"
+			? (value as Partial<Record<PortfolioSectionKey, unknown>>)
+			: {};
+
+	for (const sectionKey of defaultPortfolioLayout.sectionOrder) {
+		const parsed = Number(input[sectionKey]);
+		if (allowedSpans.has(parsed as PortfolioSectionSpan)) {
+			base[sectionKey] = parsed as PortfolioSectionSpan;
+		}
+	}
+
+	return base;
+};
 
 const sanitizeEditablePortfolio = (
 	value: unknown,
@@ -91,6 +144,10 @@ const sanitizeEditablePortfolio = (
 			title: String((item as { title?: string }).title ?? ""),
 			body: String((item as { body?: string }).body ?? ""),
 		})),
+		layout: {
+			sectionOrder: normalizeSectionOrder(input.layout?.sectionOrder),
+			sectionSpans: normalizeSectionSpans(input.layout?.sectionSpans),
+		},
 		chatEnabled: Boolean(input.chatEnabled),
 		geminiApiKey: String(input.geminiApiKey ?? ""),
 		hasCustomGeminiKey: Boolean(String(input.geminiApiKey ?? "").trim()),

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS portfolios (
 	tech_categories_json JSON NOT NULL,
 	projects_json JSON NOT NULL,
 	custom_sections_json JSON NOT NULL,
+	layout_json JSON NULL,
 	chat_enabled TINYINT(1) NOT NULL DEFAULT 1,
 	gemini_api_key VARCHAR(255) NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

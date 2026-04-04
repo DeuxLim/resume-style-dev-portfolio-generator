@@ -1,6 +1,7 @@
 import type {
 	EditablePortfolio,
 	ExperienceItem,
+	PortfolioLayout,
 	PortfolioRecord,
 	ProjectItem,
 	TechCategory,
@@ -38,6 +39,27 @@ const categories = (items: Omit<TechCategory, "id">[]): TechCategory[] =>
 		...item,
 		id: makeId(item.name),
 	}));
+
+export const defaultPortfolioLayout: PortfolioLayout = {
+	sectionOrder: [
+		"about",
+		"timeline",
+		"experience",
+		"tech",
+		"projects",
+		"heatmap",
+		"custom",
+	],
+	sectionSpans: {
+		about: 8,
+		timeline: 4,
+		experience: 8,
+		tech: 4,
+		projects: 8,
+		heatmap: 6,
+		custom: 6,
+	},
+};
 
 export const buildStarterPortfolio = (
 	username: string,
@@ -109,6 +131,7 @@ export const buildStarterPortfolio = (
 		},
 	]),
 	customSections: [],
+	layout: { ...defaultPortfolioLayout },
 	chatEnabled: true,
 	geminiApiKey: "",
 	hasCustomGeminiKey: false,

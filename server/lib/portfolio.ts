@@ -3,6 +3,7 @@ import type {
 	CustomSection,
 	EditablePortfolio,
 	ExperienceItem,
+	PortfolioLayout,
 	PortfolioRecord,
 	ProjectItem,
 	TechCategory,
@@ -30,6 +31,7 @@ type PortfolioRow = {
 	tech_categories_json: string | null;
 	projects_json: string | null;
 	custom_sections_json: string | null;
+	layout_json: string | null;
 	chat_enabled: number;
 	gemini_api_key: string | null;
 	created_at?: Date;
@@ -65,6 +67,41 @@ const parseJson = <T>(value: unknown, fallback: T): T => {
 	return fallback;
 };
 
+const normalizeLayout = (
+	value: unknown,
+	fallback: PortfolioLayout,
+): PortfolioLayout => {
+	const parsed = parseJson<Partial<PortfolioLayout>>(value, fallback);
+	const incoming = Array.isArray(parsed?.sectionOrder) ? parsed.sectionOrder : [];
+	const allowed = new Set(fallback.sectionOrder);
+	const deduped = incoming
+		.map((entry) => String(entry).trim())
+		.filter((entry): entry is PortfolioLayout["sectionOrder"][number] =>
+			allowed.has(entry as PortfolioLayout["sectionOrder"][number]),
+		)
+		.filter((entry, index, arr) => arr.indexOf(entry) === index);
+	for (const section of fallback.sectionOrder) {
+		if (!deduped.includes(section)) {
+			deduped.push(section);
+		}
+	}
+	const nextSpans = { ...fallback.sectionSpans };
+	const rawSpans =
+		parsed?.sectionSpans && typeof parsed.sectionSpans === "object"
+			? parsed.sectionSpans
+			: {};
+	for (const section of fallback.sectionOrder) {
+		const value = Number((rawSpans as Record<string, unknown>)[section]);
+		if (value === 4 || value === 6 || value === 8 || value === 12) {
+			nextSpans[section] = value;
+		}
+	}
+	return {
+		sectionOrder: deduped,
+		sectionSpans: nextSpans,
+	};
+};
+
 export const serializePortfolio = (portfolio: EditablePortfolio) => ({
 	fullName: portfolio.fullName.trim(),
 	headline: portfolio.headline.trim(),
@@ -87,6 +124,7 @@ export const serializePortfolio = (portfolio: EditablePortfolio) => ({
 	techCategoriesJson: JSON.stringify(portfolio.techCategories),
 	projectsJson: JSON.stringify(portfolio.projects),
 	customSectionsJson: JSON.stringify(portfolio.customSections),
+	layoutJson: JSON.stringify(portfolio.layout),
 	chatEnabled: portfolio.chatEnabled ? 1 : 0,
 	geminiApiKey: portfolio.geminiApiKey.trim(),
 });
@@ -126,6 +164,7 @@ export const mapPortfolioRow = (
 			row.custom_sections_json,
 			fallback.customSections,
 		),
+		layout: normalizeLayout(row.layout_json, fallback.layout),
 		chatEnabled: Boolean(row.chat_enabled),
 		geminiApiKey: row.gemini_api_key ?? "",
 		hasCustomGeminiKey: Boolean(row.gemini_api_key),
@@ -165,5 +204,6 @@ export const toPublicPortfolio = (
 	techCategories: portfolio.techCategories,
 	projects: portfolio.projects,
 	customSections: portfolio.customSections,
+	layout: portfolio.layout,
 	chatEnabled: portfolio.chatEnabled,
 });

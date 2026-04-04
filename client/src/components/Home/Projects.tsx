@@ -32,7 +32,7 @@ export default function Projects({ items }: { items?: ProjectItem[] }) {
 
 							{href && (
 								<div className="mt-2">
-									<span className="text-[11px] px-2 py-1 rounded-none bg-(--app-surface-2) border border-(--app-border)">
+									<span className="block max-w-full break-all text-[11px] px-2 py-1 rounded-none bg-(--app-surface-2) border border-(--app-border)">
 										{project.url}
 									</span>
 								</div>

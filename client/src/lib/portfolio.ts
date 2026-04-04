@@ -6,6 +6,7 @@ import type {
 	TechCategory,
 	TimelineItem,
 } from "../../../shared/types/portfolio.types";
+import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 
 const makeId = () =>
 	typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -51,6 +52,16 @@ export const cloneEditablePortfolio = (
 	portfolio: EditablePortfolio,
 ): EditablePortfolio => ({
 	...portfolio,
+	layout: {
+		sectionOrder:
+			portfolio.layout?.sectionOrder?.length
+				? [...portfolio.layout.sectionOrder]
+				: [...defaultPortfolioLayout.sectionOrder],
+		sectionSpans: {
+			...defaultPortfolioLayout.sectionSpans,
+			...(portfolio.layout?.sectionSpans ?? {}),
+		},
+	},
 	about: [...portfolio.about],
 	timeline: portfolio.timeline.map((item) => ({ ...item })),
 	experiences: portfolio.experiences.map((item) => ({

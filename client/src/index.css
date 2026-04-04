@@ -216,6 +216,30 @@
 	.react-activity-calendar__tooltip-arrow {
 		fill: var(--app-tooltip-bg);
 	}
+
+	/* Layout editor grid UX */
+	.react-grid-layout {
+		min-height: 320px;
+	}
+
+	.react-grid-item {
+		transition: box-shadow 180ms ease;
+	}
+
+	.react-grid-item.react-draggable-dragging {
+		z-index: 20;
+		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+	}
+
+	.react-grid-item.react-grid-placeholder {
+		background: color-mix(in oklab, var(--app-accent) 18%, transparent);
+		border: 1px dashed color-mix(in oklab, var(--app-accent) 60%, white);
+		opacity: 1;
+	}
+
+	.react-resizable-handle {
+		opacity: 0.75;
+	}
 }
 
 @layer components {

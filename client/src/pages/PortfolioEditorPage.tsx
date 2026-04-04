@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/axios.client";
@@ -34,7 +34,69 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Layers3 } from "lucide-react";
+import GridLayout, {
+	useContainerWidth,
+	type Layout as GridLayoutModel,
+	type LayoutItem as GridLayoutItem,
+} from "react-grid-layout";
 import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
+import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
+import type {
+	PortfolioSectionKey,
+	PortfolioSectionSpan,
+} from "../../../shared/types/portfolio.types";
+import About from "@/components/Home/About";
+import Timeline from "@/components/Home/Timeline";
+import Experience from "@/components/Home/Experience";
+import TechStack from "@/components/Home/TechStack";
+import Projects from "@/components/Home/Projects";
+import Heatmap from "@/components/Home/Heatmap";
+
+const SECTION_META: Record<
+	PortfolioSectionKey,
+	{ title: string; description: string }
+> = {
+	about: {
+		title: "About",
+		description: "Personal summary and introduction.",
+	},
+	timeline: {
+		title: "Timeline",
+		description: "Career and education milestones.",
+	},
+	experience: {
+		title: "Experience",
+		description: "Role history and impact highlights.",
+	},
+	tech: {
+		title: "Tech Stack",
+		description: "Grouped tools and technologies.",
+	},
+	projects: {
+		title: "Projects",
+		description: "Portfolio project showcase.",
+	},
+	heatmap: {
+		title: "Coding Heatmap",
+		description: "GitHub contribution graph section.",
+	},
+	custom: {
+		title: "Custom Sections",
+		description: "Any extra blocks added by user.",
+	},
+};
+
+const GRID_COLS = 12;
+const GRID_ALLOWED_SPANS: PortfolioSectionSpan[] = [4, 6, 8, 12];
+const SECTION_GRID_HEIGHT: Record<PortfolioSectionKey, number> = {
+	about: 5,
+	timeline: 6,
+	experience: 7,
+	tech: 6,
+	projects: 6,
+	heatmap: 5,
+	custom: 5,
+};
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
@@ -43,6 +105,12 @@ export default function PortfolioEditorPage() {
 	const [portfolio, setPortfolio] = useState<EditablePortfolio | null>(null);
 	const [statusMessage, setStatusMessage] = useState("");
 	const [quickTechInput, setQuickTechInput] = useState<Record<string, string>>({});
+	const [layoutFeedback, setLayoutFeedback] = useState("");
+	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
+	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
+	const { width: layoutWidth, containerRef: layoutContainerRef } = useContainerWidth({
+		measureBeforeMount: false,
+	});
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -193,6 +261,176 @@ export default function PortfolioEditorPage() {
 		setQuickTechInput((current) => ({ ...current, [categoryId]: "" }));
 	};
 
+	const getLayoutOrder = (source: EditablePortfolio) =>
+		source.layout?.sectionOrder?.length
+			? source.layout.sectionOrder
+			: defaultPortfolioLayout.sectionOrder;
+
+	const getSectionSpan = (
+		source: EditablePortfolio,
+		sectionKey: PortfolioSectionKey,
+	): PortfolioSectionSpan => {
+		const span = source.layout?.sectionSpans?.[sectionKey];
+		return GRID_ALLOWED_SPANS.includes(span as PortfolioSectionSpan)
+			? (span as PortfolioSectionSpan)
+			: (defaultPortfolioLayout.sectionSpans[sectionKey] ?? 6);
+	};
+
+	const normalizeOrder = (nextOrder: PortfolioSectionKey[]) => {
+		const deduped = nextOrder.filter((key, index, arr) => arr.indexOf(key) === index);
+		for (const key of defaultPortfolioLayout.sectionOrder) {
+			if (!deduped.includes(key)) deduped.push(key);
+		}
+		return deduped;
+	};
+
+	const snapToAllowedSpan = (value: number): PortfolioSectionSpan => {
+		let nearest = GRID_ALLOWED_SPANS[0];
+		let delta = Math.abs(value - nearest);
+		for (const span of GRID_ALLOWED_SPANS) {
+			const nextDelta = Math.abs(value - span);
+			if (nextDelta < delta) {
+				nearest = span;
+				delta = nextDelta;
+			}
+		}
+		return nearest;
+	};
+
+	const resolveSectionSpanRecord = (
+		source: EditablePortfolio,
+	): Record<PortfolioSectionKey, PortfolioSectionSpan> => ({
+		about: getSectionSpan(source, "about"),
+		timeline: getSectionSpan(source, "timeline"),
+		experience: getSectionSpan(source, "experience"),
+		tech: getSectionSpan(source, "tech"),
+		projects: getSectionSpan(source, "projects"),
+		heatmap: getSectionSpan(source, "heatmap"),
+		custom: getSectionSpan(source, "custom"),
+	});
+
+	const buildGridLayoutFromPortfolio = (source: EditablePortfolio): GridLayoutModel => {
+		const order = getLayoutOrder(source);
+		let cursorX = 0;
+		let cursorY = 0;
+		let currentRowHeight = 0;
+
+		return order.map((sectionKey) => {
+			const w = getSectionSpan(source, sectionKey);
+			const h = SECTION_GRID_HEIGHT[sectionKey] ?? 6;
+
+			if (cursorX + w > GRID_COLS) {
+				cursorX = 0;
+				cursorY += currentRowHeight || 1;
+				currentRowHeight = 0;
+			}
+
+			const item: GridLayoutItem = {
+				i: sectionKey,
+				x: cursorX,
+				y: cursorY,
+				w,
+				h,
+				minW: 4,
+				maxW: GRID_COLS,
+				minH: 4,
+				isBounded: true,
+			};
+
+			cursorX += w;
+			currentRowHeight = Math.max(currentRowHeight, h);
+			return item;
+		});
+	};
+
+	const layoutSignature = useMemo(() => {
+		if (!portfolio) return "";
+		const order = getLayoutOrder(portfolio).join("|");
+		const spans = getLayoutOrder(portfolio)
+			.map((key) => `${key}:${getSectionSpan(portfolio, key)}`)
+			.join("|");
+		return `${order}__${spans}`;
+	}, [portfolio]);
+
+	useEffect(() => {
+		if (!portfolio) return;
+		setCanvasLayout(buildGridLayoutFromPortfolio(portfolio));
+	}, [layoutSignature, portfolio]);
+
+	const commitGridLayoutToPortfolio = (nextLayout: GridLayoutModel) => {
+		setPortfolio((current) => {
+			if (!current) return current;
+
+			const sorted = [...nextLayout].sort((a, b) =>
+				a.y === b.y ? a.x - b.x : a.y - b.y,
+			);
+			const nextOrder = normalizeOrder(
+				sorted.map((item) => item.i as PortfolioSectionKey),
+			);
+			const nextSpans = sorted.reduce<Record<PortfolioSectionKey, PortfolioSectionSpan>>(
+				(acc, item) => {
+					const key = item.i as PortfolioSectionKey;
+					acc[key] = snapToAllowedSpan(item.w);
+					return acc;
+				},
+				resolveSectionSpanRecord(current),
+			);
+
+			return {
+				...current,
+				layout: {
+					sectionOrder: nextOrder,
+					sectionSpans: nextSpans,
+				},
+			};
+		});
+	};
+
+	const getCanvasSectionContent = (
+		sectionKey: PortfolioSectionKey,
+		source: EditablePortfolio,
+	): ReactNode => {
+		switch (sectionKey) {
+			case "about":
+				return <About paragraphs={source.about} />;
+			case "timeline":
+				return <Timeline items={source.timeline} />;
+			case "experience":
+				return <Experience items={source.experiences} />;
+			case "tech":
+				return <TechStack categories={source.techCategories} />;
+			case "projects":
+				return <Projects items={source.projects} />;
+			case "heatmap":
+				return source.githubUsername?.trim() ? (
+					<Heatmap username={source.githubUsername} />
+				) : (
+					<div className="text-sm text-muted-foreground">
+						GitHub username is empty. Add one to show the heatmap.
+					</div>
+				);
+			case "custom":
+				return source.customSections.length ? (
+					<div className="space-y-3">
+						{source.customSections.map((section) => (
+							<div key={section.id} className="space-y-2">
+								<div className="text-base sm:text-lg font-bold">{section.title}</div>
+								<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
+									{section.body}
+								</p>
+							</div>
+						))}
+					</div>
+				) : (
+					<div className="text-sm text-muted-foreground">
+						No custom sections yet.
+					</div>
+				);
+			default:
+				return null;
+		}
+	};
+
 	if (sessionQuery.isLoading || portfolioQuery.isLoading) {
 		return <div className="app-card p-6">Loading editor...</div>;
 	}
@@ -250,6 +488,7 @@ export default function PortfolioEditorPage() {
 					<TabsTrigger value="story">Story</TabsTrigger>
 					<TabsTrigger value="career">Career</TabsTrigger>
 					<TabsTrigger value="stack">Stack & Projects</TabsTrigger>
+					<TabsTrigger value="layout">Layout</TabsTrigger>
 					<TabsTrigger value="extras">Extras</TabsTrigger>
 				</TabsList>
 
@@ -1006,6 +1245,168 @@ export default function PortfolioEditorPage() {
 									</Button>
 								</div>
 							))}
+						</CardContent>
+					</Card>
+				</TabsContent>
+
+				<TabsContent value="layout" className="space-y-4">
+					<Card className="border-border/70 shadow-none">
+						<CardHeader>
+							<CardTitle>Layout canvas</CardTitle>
+							<CardDescription>
+								Drag anywhere on each block to reposition. Resize from the bottom-right
+								handle to change width.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div
+								ref={layoutContainerRef}
+								className="overflow-x-hidden rounded-xl border bg-muted/20 p-2"
+							>
+								<GridLayout
+									width={layoutWidth}
+									layout={canvasLayout}
+									gridConfig={{
+										cols: GRID_COLS,
+										rowHeight: 26,
+										margin: [12, 12],
+										containerPadding: [8, 8],
+										maxRows: 48,
+									}}
+									dragConfig={{
+										enabled: true,
+										bounded: true,
+									}}
+									resizeConfig={{
+										enabled: true,
+										handles: ["se"],
+									}}
+									onDragStart={(_, oldItem) => {
+										if (!oldItem) return;
+										setDraggingSection(oldItem.i as PortfolioSectionKey);
+										setLayoutFeedback(
+											"Drag preview is live. Release to apply the new position.",
+										);
+									}}
+									onDragStop={(nextLayout, oldItem, newItem) => {
+										setDraggingSection(null);
+										setCanvasLayout(nextLayout);
+										commitGridLayoutToPortfolio(nextLayout);
+
+										if (!oldItem || !newItem) return;
+										const moved = oldItem.x !== newItem.x || oldItem.y !== newItem.y;
+										setLayoutFeedback(
+											moved
+												? "Placement updated."
+												: "This spot is constrained by current grid bounds.",
+										);
+									}}
+									onDrag={(nextLayout) => {
+										setCanvasLayout(nextLayout);
+									}}
+									onResize={(nextLayout) => {
+										setCanvasLayout(nextLayout);
+									}}
+									onResizeStop={(nextLayout, oldItem, newItem) => {
+										setCanvasLayout(nextLayout);
+										commitGridLayoutToPortfolio(nextLayout);
+
+										if (!oldItem || !newItem) return;
+										const resized = oldItem.w !== newItem.w || oldItem.h !== newItem.h;
+										setLayoutFeedback(
+											resized
+												? "Block size updated."
+												: "Resize constrained by neighboring blocks or grid bounds.",
+										);
+									}}
+								>
+									{getLayoutOrder(portfolio).map((sectionKey) => (
+										<div
+											key={sectionKey}
+											className={`h-full overflow-hidden rounded-xl border bg-background ${
+												draggingSection === sectionKey ? "ring-2 ring-(--app-accent)" : ""
+											}`}
+										>
+											<div className="mb-2 flex items-center justify-between gap-2 border-b px-3 py-2">
+												<div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+													{SECTION_META[sectionKey].title}
+												</div>
+												<div className="text-[11px] text-muted-foreground">
+													{getSectionSpan(portfolio, sectionKey)} / 12
+												</div>
+											</div>
+											<div className="pointer-events-none h-[calc(100%-44px)] min-w-0 overflow-auto overflow-x-hidden px-3 pb-3 [overflow-wrap:anywhere]">
+												{getCanvasSectionContent(sectionKey, portfolio)}
+											</div>
+										</div>
+									))}
+								</GridLayout>
+							</div>
+							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+								Drag any card directly. The card itself is the placement preview, and
+								sibling blocks reflow in real time.
+							</div>
+							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+								If a move or resize is constrained, you will see a hint after drop.
+								Resize from the bottom-right corner to change card width.
+							</div>
+
+							<div className="flex flex-wrap gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										const snapped = canvasLayout.map((item) => ({
+											...item,
+											w: snapToAllowedSpan(item.w),
+										}));
+										setCanvasLayout(snapped);
+										commitGridLayoutToPortfolio(snapped);
+										setLayoutFeedback("Card widths snapped to supported 4/6/8/12 steps.");
+									}}
+								>
+									Snap widths to 4/6/8/12
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setPortfolio((current) =>
+											current
+												? {
+														...current,
+														layout: {
+															sectionOrder: [...defaultPortfolioLayout.sectionOrder],
+															sectionSpans: { ...defaultPortfolioLayout.sectionSpans },
+														},
+													}
+												: current,
+										);
+										setLayoutFeedback("Reset to default order and width.");
+									}}
+								>
+									Reset to default layout
+								</Button>
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									onClick={() => {
+										commitGridLayoutToPortfolio(canvasLayout);
+										setLayoutFeedback("Layout synced from canvas.");
+									}}
+								>
+									Apply current canvas
+								</Button>
+							</div>
+
+							{layoutFeedback && (
+								<div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+									{layoutFeedback}
+								</div>
+							)}
 						</CardContent>
 					</Card>
 				</TabsContent>

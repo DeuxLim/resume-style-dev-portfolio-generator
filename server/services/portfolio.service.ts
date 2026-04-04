@@ -37,6 +37,7 @@ type PortfolioQueryRow = RowDataPacket & {
 	tech_categories_json: string | null;
 	projects_json: string | null;
 	custom_sections_json: string | null;
+	layout_json: string | null;
 	chat_enabled: number;
 	gemini_api_key: string | null;
 	created_at?: Date;
@@ -54,6 +55,37 @@ type PortfolioVersionRow = RowDataPacket & {
 };
 
 let versionsTableReady: Promise<void> | null = null;
+let portfoliosLayoutColumnReady: Promise<void> | null = null;
+
+const ensurePortfoliosLayoutColumn = async () => {
+	if (portfoliosLayoutColumnReady) {
+		await portfoliosLayoutColumnReady;
+		return;
+	}
+
+	const db = getDb();
+	portfoliosLayoutColumnReady = (async () => {
+		const [rows] = await db.query<RowDataPacket[]>(
+			`
+				SELECT COUNT(*) AS total
+				FROM information_schema.COLUMNS
+				WHERE TABLE_SCHEMA = DATABASE()
+					AND TABLE_NAME = 'portfolios'
+					AND COLUMN_NAME = 'layout_json'
+			`,
+		);
+		const exists = Number(rows[0]?.total ?? 0) > 0;
+		if (exists) return;
+		await db.query(
+			`
+				ALTER TABLE portfolios
+				ADD COLUMN layout_json JSON NULL AFTER custom_sections_json
+			`,
+		);
+	})();
+
+	await portfoliosLayoutColumnReady;
+};
 
 const ensurePortfolioVersionsTable = async () => {
 	if (versionsTableReady) {
@@ -137,6 +169,7 @@ const getNextAutoVersionName = async (userId: number) => {
 export const getPortfolioByUsername = async (
 	username: string,
 ): Promise<PublicPortfolio | null> => {
+	await ensurePortfoliosLayoutColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioQueryRow[]>(
 		`
@@ -162,6 +195,7 @@ export const getPortfolioByUsername = async (
 				p.tech_categories_json,
 				p.projects_json,
 				p.custom_sections_json,
+				p.layout_json,
 				p.chat_enabled,
 				p.gemini_api_key,
 				p.created_at,
@@ -198,6 +232,7 @@ export const getPortfolioByUsername = async (
 export const getEditablePortfolioByUserId = async (
 	userId: number,
 ): Promise<EditablePortfolio | null> => {
+	await ensurePortfoliosLayoutColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioQueryRow[]>(
 		`
@@ -223,6 +258,7 @@ export const getEditablePortfolioByUserId = async (
 				p.tech_categories_json,
 				p.projects_json,
 				p.custom_sections_json,
+				p.layout_json,
 				p.chat_enabled,
 				p.gemini_api_key,
 				p.created_at,
@@ -270,6 +306,7 @@ const applyPortfolioUpdateByUserId = async (
 	userId: number,
 	portfolio: EditablePortfolio,
 ) => {
+	await ensurePortfoliosLayoutColumn();
 	const db = getDb();
 	const serialized = serializePortfolio(portfolio);
 
@@ -295,6 +332,7 @@ const applyPortfolioUpdateByUserId = async (
 				tech_categories_json = ?,
 				projects_json = ?,
 				custom_sections_json = ?,
+				layout_json = ?,
 				chat_enabled = ?,
 				gemini_api_key = ?,
 				updated_at = CURRENT_TIMESTAMP
@@ -319,6 +357,7 @@ const applyPortfolioUpdateByUserId = async (
 			serialized.techCategoriesJson,
 			serialized.projectsJson,
 			serialized.customSectionsJson,
+			serialized.layoutJson,
 			serialized.chatEnabled,
 			serialized.geminiApiKey || null,
 			userId,
@@ -498,6 +537,7 @@ export const deletePortfolioVersionByUserId = async (
 };
 
 export const createStarterPortfolio = async (user: SessionUser) => {
+	await ensurePortfoliosLayoutColumn();
 	const db = getDb();
 	const starter = buildStarterPortfolio(user.username, user.email, user.fullName);
 	const serialized = serializePortfolio(starter);
@@ -524,10 +564,11 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 				tech_categories_json,
 				projects_json,
 				custom_sections_json,
+				layout_json,
 				chat_enabled,
 				gemini_api_key
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 		[
 			user.id,
@@ -549,6 +590,7 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 			serialized.techCategoriesJson,
 			serialized.projectsJson,
 			serialized.customSectionsJson,
+			serialized.layoutJson,
 			serialized.chatEnabled,
 			serialized.geminiApiKey || null,
 		],

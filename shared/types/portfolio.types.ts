@@ -33,6 +33,22 @@ export type CustomSection = {
 	body: string;
 };
 
+export type PortfolioSectionKey =
+	| "about"
+	| "timeline"
+	| "experience"
+	| "tech"
+	| "projects"
+	| "heatmap"
+	| "custom";
+
+export type PortfolioSectionSpan = 4 | 6 | 8 | 12;
+
+export type PortfolioLayout = {
+	sectionOrder: PortfolioSectionKey[];
+	sectionSpans: Partial<Record<PortfolioSectionKey, PortfolioSectionSpan>>;
+};
+
 export type PortfolioRecord = {
 	username: string;
 	fullName: string;
@@ -54,6 +70,7 @@ export type PortfolioRecord = {
 	techCategories: TechCategory[];
 	projects: ProjectItem[];
 	customSections: CustomSection[];
+	layout: PortfolioLayout;
 	chatEnabled: boolean;
 };
 
