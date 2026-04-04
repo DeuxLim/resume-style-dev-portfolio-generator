@@ -262,9 +262,16 @@ export default function DashboardPage() {
 										: "N/A"}
 								</div>
 							</div>
-							<div className="mt-3 flex gap-2 sm:mt-0">
+							<div className="mt-3 flex items-center gap-2 sm:mt-0">
 								{version.isActive ? (
-									<Badge variant="secondary">Live</Badge>
+									<span
+										className={cn(
+											buttonVariants({ variant: "secondary", size: "sm" }),
+											"pointer-events-none",
+										)}
+									>
+										Live
+									</span>
 								) : (
 									<>
 										<Button
@@ -313,7 +320,7 @@ export default function DashboardPage() {
 								)}
 								<Link
 									to="/dashboard/edit"
-									className={buttonVariants({ variant: "ghost", size: "sm" })}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
 								>
 									Edit
 								</Link>
