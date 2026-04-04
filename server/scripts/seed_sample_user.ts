@@ -5,6 +5,10 @@ import {
 	updatePortfolioByUserId,
 } from "../services/portfolio.service.js";
 import {
+	getOrCreateResumeByUserId,
+	updateResumeByUserId,
+} from "../services/resume.service.js";
+import {
 	createUser,
 	getUserByEmail,
 	getUserByUsername,
@@ -17,7 +21,10 @@ import type {
 	TechCategory,
 	TimelineItem,
 } from "../../shared/types/portfolio.types.js";
+import type { ResumeRecord } from "../../shared/types/resume.types.js";
 import { defaultPortfolioLayout } from "../../shared/defaults/portfolio.js";
+import { defaultResumeLayout } from "../../shared/defaults/resume.js";
+import { validateResume } from "../../shared/lib/resume.js";
 
 const makeId = (value: string) =>
 	value
@@ -126,92 +133,113 @@ const buildSamplePortfolio = (user: {
 		username: user.username,
 		email: user.email,
 		fullName: user.fullName,
-		headline: "Senior Full-Stack Engineer (React, Node, MySQL) · Product + Platform",
-		location: "Austin, TX (Remote-friendly)",
+		headline:
+			"Senior Staff Full-Stack Engineer (Laravel, React, Node) · Product, Platform, and Reliability",
+		location: "Seattle, WA (Remote-first, US/PH overlap)",
 		experienceSummary:
-			"6+ years building customer-facing web apps and internal platforms. Strong in TypeScript, API design, data modeling, and performance.",
+			"10+ years building high-scale SaaS products and internal platforms. Deep in architecture, platform reliability, data design, and delivery leadership.",
 		education:
-			"BS Computer Science · Systems + HCI focus · Built capstone on real-time collaboration tools",
+			"BS Computer Science · Distributed Systems & HCI · Ongoing executive coursework in engineering leadership",
 		availability:
-			"Available for remote contract work (20-30 hrs/wk) or full-time roles focused on web platforms, developer experience, or product infrastructure.",
-		phone: "+1 (512) 555-0147",
+			"Open to senior/staff IC roles and technical leadership roles focused on platform modernization, AI-enabled workflows, and distributed product teams.",
+		phone: "+1 (206) 555-0198",
 		avatarUrl,
 		coverUrl,
 		githubUrl: "https://github.com/averykim-dev",
 		githubUsername: "averykim-dev",
 		linkedinUrl: "https://www.linkedin.com/in/avery-kim-dev/",
 		about: [
-			"I build web products that are easy to use and easy to maintain. My default is to keep systems simple: clear data models, explicit API contracts, and frontend state that matches how users actually think.",
-			"In the last few years I've led features end-to-end: designing tables and migrations, building APIs, implementing UI, and shipping observability so teams can debug production issues quickly. I care a lot about correctness (validation, auth, edge cases) because it saves time later.",
-			"I'm comfortable as a generalist, but I especially enjoy performance work (query tuning, caching, render optimization) and platform work (shared components, CI pipelines, guardrails). I like mentoring and writing short docs that help teams stay aligned.",
+			"I lead cross-functional product engineering from concept to production, balancing speed with maintainability. My default approach is to reduce complexity first: clear domain boundaries, explicit contracts, and observability baked in from day one.",
+			"I have built and modernized large-scale systems across Laravel, React, Node.js, and MySQL/Postgres ecosystems, including ticketing platforms, customer portals, automation workflows, and high-volume API integrations. I consistently focus on measurable outcomes: faster cycle time, lower incident rates, and better customer retention.",
+			"I mentor engineers across seniority levels, run architecture reviews, and help teams adopt practical standards for quality, performance, and security. I care deeply about clean systems that are easy to operate under real production pressure.",
+			"I am especially effective where product ambiguity is high and execution pressure is real. I can align stakeholders, break down complex initiatives, and ship incremental value without sacrificing long-term technical health.",
 		],
 		timeline: withIdsTimeline([
 			{
 				year: "2026",
-				position: "Senior Full-Stack Engineer",
-				company: "Northwind Labs",
-				note: "Led reliability and performance initiatives across a multi-tenant SaaS platform.",
+				position: "Staff Full-Stack Engineer",
+				company: "Northbridge Cloud",
+				note: "Owned platform architecture, reliability programs, and delivery standards across product squads.",
 			},
 			{
 				year: "2024",
-				position: "Full-Stack Engineer",
-				company: "Northwind Labs",
-				note: "Shipped high-impact product features, improved CI speed, and standardized API patterns.",
+				position: "Senior Full-Stack Engineer",
+				company: "Northbridge Cloud",
+				note: "Led core product initiatives, standardized service contracts, and reduced release friction.",
 			},
 			{
 				year: "2022",
-				position: "Frontend Engineer",
+				position: "Senior Software Engineer",
 				company: "Brightside Commerce",
-				note: "Owned React app performance and accessibility improvements, built shared UI library.",
+				note: "Led frontend platform evolution and API modernization for enterprise retail clients.",
 			},
 			{
 				year: "2020",
 				position: "Software Engineer",
-				company: "Freelance / Contract",
-				note: "Built small-to-mid projects for local businesses: dashboards, booking flows, and payment integrations.",
+				company: "Apex Systems",
+				note: "Built full-stack SaaS modules, integrations, and internal productivity tooling.",
+			},
+			{
+				year: "2016",
+				position: "Junior Web Developer",
+				company: "Freelance / Agency",
+				note: "Started delivering production websites and custom business tooling.",
 			},
 		]),
 		experiences: withIdsExperiences([
 			{
-				role: "Senior Full-Stack Engineer",
-				company: "Northwind Labs",
+				role: "Staff Full-Stack Engineer",
+				company: "Northbridge Cloud",
 				period: "Jan 2026 — Present",
 				highlights: [
-					"Led a performance project that reduced median API latency by ~45% by redesigning hot queries, adding targeted indexes, and introducing request-level caching with safe invalidation.",
-					"Built an audit-log pipeline (append-only events + admin UI) to support compliance requests and faster incident investigations; added structured logs and trace IDs end-to-end.",
-					"Improved auth + permissions by introducing role-based access control (RBAC) checks at the service layer and tightening validation, preventing a class of broken edge cases and support tickets.",
-					"Mentored 3 engineers through code reviews and pairing sessions; standardized patterns for pagination, filtering, and error responses across the API.",
+					"Architected and led a multi-quarter platform modernization initiative across 12 services, reducing cross-service incident frequency by 52% and cutting on-call escalation time from 38 minutes to 14 minutes.",
+					"Introduced an end-to-end reliability framework (SLOs, error budgets, service health dashboards, and ownership runbooks) that improved production change confidence and reduced rollback rates by 41%.",
+					"Led design and rollout of an event-driven integration layer supporting 20M+ monthly events with idempotency guardrails, retry policies, and tenant-level isolation.",
+					"Partnered with product, security, and operations leaders to prioritize platform investments, aligning roadmap scope with customer impact and measurable business outcomes.",
+					"Mentored senior engineers into tech-lead responsibilities, created an architecture review playbook, and raised delivery consistency across distributed teams.",
 				],
 			},
 			{
-				role: "Full-Stack Engineer",
-				company: "Northwind Labs",
+				role: "Senior Full-Stack Engineer",
+				company: "Northbridge Cloud",
 				period: "Apr 2024 — Dec 2025",
 				highlights: [
-					"Owned a new onboarding flow with multi-step forms, server-side validation, and resumable progress; improved activation rate and reduced drop-offs on mobile.",
-					"Designed and shipped a background job system for imports (CSV + API sync) with retries and partial-failure reporting so customer support could self-serve.",
-					"Refactored a legacy module into smaller services with clear boundaries (controllers → service layer → database helpers), making changes safer and faster to review.",
-					"Added test coverage around billing edge cases (proration, cancellations, failed payments) and built admin tooling to view invoice history and status.",
+					"Owned a critical customer onboarding platform rebuild that improved activation completion from 63% to 81% and reduced support escalations by 34%.",
+					"Shipped a resilient background processing system for imports and vendor syncs with queue partitioning, dead-letter handling, and operational replay tooling.",
+					"Refactored legacy monolith workflows into maintainable domain services and API contracts, reducing average PR review cycles and post-release regressions.",
+					"Built observability-first release workflows with deploy health checks and progressive rollout gates, improving release stability during peak traffic windows.",
+					"Implemented billing lifecycle hardening across upgrades, downgrades, and payment failures with comprehensive test coverage for edge cases.",
 				],
 			},
 			{
-				role: "Frontend Engineer",
+				role: "Senior Software Engineer",
 				company: "Brightside Commerce",
-				period: "Jun 2022 — Mar 2024",
+				period: "Jan 2022 — Mar 2024",
 				highlights: [
-					"Built a component library (buttons, forms, tables) with accessibility defaults and consistent spacing/typography; reduced UI regressions and sped up feature delivery.",
-					"Improved Core Web Vitals by optimizing bundles, lazy-loading heavy routes, and removing render-blocking assets; pages became noticeably faster on slower devices.",
-					"Introduced typed API clients and consistent error handling for the frontend, reducing brittle fetch logic and simplifying state management across the app.",
+					"Led frontend platform redesign with shared component architecture, accessibility defaults, and design token adoption across 5 product teams.",
+					"Improved Core Web Vitals and checkout performance through bundle strategy optimization, route-level code splitting, and render pipeline tuning.",
+					"Established typed API client patterns and error-handling standards, reducing frontend defects tied to integration mismatches by 47%.",
+					"Collaborated with backend teams to redesign high-traffic endpoints and reduce payload complexity for major customer-facing workflows.",
 				],
 			},
 			{
-				role: "Software Engineer (Contract)",
-				company: "Freelance / Contract",
-				period: "Aug 2020 — May 2022",
+				role: "Software Engineer",
+				company: "Apex Systems",
+				period: "Jul 2018 — Dec 2021",
 				highlights: [
-					"Delivered small web apps for real businesses: booking and scheduling, inventory dashboards, and lightweight CRM workflows.",
-					"Integrated Stripe payments and transactional email; wrote clear handover docs so non-engineering owners could operate and troubleshoot common issues.",
-					"Built pragmatic admin panels for content updates and reporting so clients didn’t need engineering support for everyday changes.",
+					"Delivered core B2B SaaS modules, internal analytics tools, and partner API integrations supporting finance and operations teams.",
+					"Built secure role-based admin workflows, workflow automation features, and reporting dashboards used by 1,000+ internal users.",
+					"Contributed to CI/CD maturity, API validation standards, and migration playbooks that improved deployment confidence and engineering throughput.",
+				],
+			},
+			{
+				role: "Junior Web Developer",
+				company: "Freelance / Agency",
+				period: "Jan 2016 — Jun 2018",
+				highlights: [
+					"Delivered responsive marketing sites, lightweight web apps, and CMS implementations for SMB clients.",
+					"Built practical admin interfaces and business automations that reduced repetitive manual work for operations teams.",
+					"Developed strong fundamentals in UI engineering, backend integration, and production support.",
 				],
 			},
 		]),
@@ -270,28 +298,28 @@ const buildSamplePortfolio = (user: {
 		]),
 		projects: withIdsProjects([
 			{
-				name: "Portfolio Builder (Multi-user)",
+				name: "Enterprise Service Desk Platform",
 				description:
-					"A portfolio generator with authentication, editor UI, versioning, and a public portfolio route per user. Focused on clean defaults and an editor that stays out of your way.",
-				url: "https://example.com/projects/portfolio-builder",
+					"Designed and delivered a multi-tenant ticketing and workflow platform with SLA automation, role-based access, and deep third-party integrations for enterprise support operations.",
+				url: "https://example.com/projects/service-desk-platform",
 			},
 			{
-				name: "Incident Notes",
+				name: "Developer Platform Reliability Program",
 				description:
-					"A tiny internal tool for incident timelines: structured event logging, markdown notes, and exportable postmortems. Built to be fast and boring so teams actually use it.",
-				url: "https://example.com/projects/incident-notes",
+					"Built SLO tooling, incident dashboards, and operational runbooks that standardized reliability ownership and reduced Sev-1 recurrence.",
+				url: "https://example.com/projects/reliability-program",
 			},
 			{
-				name: "Northwind Importer",
+				name: "Customer Onboarding Experience Revamp",
 				description:
-					"A background import pipeline with retries, partial failure reporting, and audit logs. Supports CSV uploads and scheduled sync from vendor APIs.",
-				url: "https://example.com/projects/importer",
+					"Rebuilt onboarding UX and backend orchestration to improve activation rate and reduce time-to-value for new enterprise customers.",
+				url: "https://example.com/projects/onboarding-revamp",
 			},
 			{
-				name: "UI Kit Playground",
+				name: "Event-Driven Integration Hub",
 				description:
-					"A component and accessibility playground for teams: component variants, keyboard navigation checks, and visual regression snapshots to prevent accidental breakage.",
-				url: "https://example.com/projects/ui-kit",
+					"Implemented a resilient event pipeline with retries, idempotency, and observability for high-volume vendor and product integrations.",
+				url: "https://example.com/projects/integration-hub",
 			},
 		]),
 		customSections,
@@ -302,25 +330,176 @@ const buildSamplePortfolio = (user: {
 	};
 };
 
+const buildSampleResume = (user: {
+	username: string;
+	email: string;
+	fullName: string;
+}): ResumeRecord => ({
+	templateKey: "ats_classic_v1",
+	content: {
+		header: {
+			fullName: user.fullName,
+			headline: "Senior Full-Stack Engineer",
+			location: "Seattle, WA",
+			email: user.email,
+			phone: "+1 (206) 555-0198",
+			websiteUrl: `https://${user.username}.dev`,
+			linkedinUrl: "https://www.linkedin.com/in/avery-kim-dev/",
+			githubUrl: "https://github.com/averykim-dev",
+		},
+		summary:
+			"Senior full-stack engineer focused on reliable product delivery. I build maintainable Laravel and React systems, improve release confidence through observability, and ship measurable user-impact improvements with cross-functional teams.",
+		experience: [
+			{
+				id: "exp-staff-northbridge",
+				role: "Staff Full-Stack Engineer",
+				company: "Northbridge Cloud",
+				location: "Seattle, WA",
+				startDate: "Jan 2026",
+				endDate: "Present",
+				isCurrent: true,
+				bullets: [
+					"Led platform modernization across core services and reduced production incidents by 52% in one year.",
+					"Introduced SLO dashboards and runbooks that improved on-call response speed and release confidence.",
+					"Partnered with product and operations leaders to prioritize platform investments with clear business outcomes.",
+				],
+			},
+			{
+				id: "exp-senior-northbridge",
+				role: "Senior Full-Stack Engineer",
+				company: "Northbridge Cloud",
+				location: "Seattle, WA",
+				startDate: "Apr 2024",
+				endDate: "Dec 2025",
+				isCurrent: false,
+				bullets: [
+					"Rebuilt onboarding flows and increased activation completion while reducing support escalation volume.",
+					"Implemented resilient background processing with retries, dead-letter handling, and replay tooling.",
+					"Refactored legacy workflows into stable domain services and lowered regression rates after releases.",
+				],
+			},
+			{
+				id: "exp-senior-brightside",
+				role: "Senior Software Engineer",
+				company: "Brightside Commerce",
+				location: "Remote",
+				startDate: "Jan 2022",
+				endDate: "Mar 2024",
+				isCurrent: false,
+				bullets: [
+					"Shipped shared frontend architecture with design tokens and accessibility defaults across product teams.",
+					"Improved checkout performance by optimizing bundle strategy and route-level code splitting.",
+					"Standardized typed API contracts and reduced client integration defects in critical workflows.",
+				],
+			},
+			{
+				id: "exp-apex",
+				role: "Software Engineer",
+				company: "Apex Systems",
+				location: "Seattle, WA",
+				startDate: "Jul 2018",
+				endDate: "Dec 2021",
+				isCurrent: false,
+				bullets: [
+					"Built SaaS modules, admin workflows, and partner integrations used by operations teams daily.",
+					"Delivered secure role-based interfaces for internal tools and reporting dashboards.",
+					"Contributed to CI improvements and migration checklists that increased deployment reliability.",
+				],
+			},
+		],
+		education: [
+			{
+				id: "edu-uw",
+				school: "University of Washington",
+				degree: "BS Computer Science",
+				location: "Seattle, WA",
+				graduationDate: "2018",
+				details: [],
+			},
+		],
+		skills: [
+			"Laravel",
+			"PHP",
+			"React",
+			"TypeScript",
+			"Node.js",
+			"Express",
+			"MySQL",
+			"PostgreSQL",
+			"Tailwind CSS",
+			"REST API Design",
+			"React Query",
+			"Docker",
+			"GitHub Actions",
+			"Observability",
+		],
+		projects: [
+			{
+				id: "proj-service-desk",
+				name: "Enterprise Service Desk Platform",
+				description:
+					"Multi-tenant ticketing and workflow platform with SLA automation and role-based controls.",
+				url: "https://example.com/projects/service-desk-platform",
+				highlights: [],
+			},
+			{
+				id: "proj-reliability",
+				name: "Developer Platform Reliability Program",
+				description:
+					"SLO tooling and operational dashboards that reduced high-severity incident recurrence.",
+				url: "https://example.com/projects/reliability-program",
+				highlights: [],
+			},
+			{
+				id: "proj-onboarding",
+				name: "Customer Onboarding Revamp",
+				description:
+					"Onboarding experience and backend orchestration redesign to improve activation completion.",
+				url: "https://example.com/projects/onboarding-revamp",
+				highlights: [],
+			},
+		],
+		certifications: [],
+		awards: [],
+		volunteer: [],
+		languages: [],
+		publications: [],
+		custom: [],
+	},
+	layout: {
+		...defaultResumeLayout,
+		sectionOrder: [...defaultResumeLayout.sectionOrder],
+		visibility: { ...defaultResumeLayout.visibility },
+		positions: {},
+	},
+});
+
 const main = async () => {
 	loadEnv();
 
 	const seedUser = await ensureUser({
-		email: "avery.kim@example.com",
-		username: "averykim",
-		fullName: "Avery Kim",
-		password: "Password123!",
+		email: "morgan.reyes@example.com",
+		username: "morganreyes",
+		fullName: "Morgan Reyes",
+		password: "SeniorDev123!",
 	});
 
 	const sample = buildSamplePortfolio(seedUser);
 	await updatePortfolioByUserId(seedUser.id, sample);
+
+	await getOrCreateResumeByUserId(seedUser.id);
+	const seededResume = buildSampleResume(seedUser);
+	const updatedResume = await updateResumeByUserId(seedUser.id, seededResume);
+	const validation = updatedResume ? validateResume(updatedResume) : validateResume(seededResume);
 
 	console.log(
 		[
 			seedUser.created ? "Seeded new sample user." : "Updated existing sample user.",
 			`email=${seedUser.email}`,
 			`username=${seedUser.username}`,
-			`password=Password123!`,
+			`password=SeniorDev123!`,
+			`resume_warnings=${validation.warnings.length}`,
+			`resume_errors=${validation.errors.length}`,
 		].join("\n"),
 	);
 
