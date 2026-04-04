@@ -44,10 +44,11 @@ const normalizeUsername = (username: string) =>
 		.slice(0, 40);
 
 const signup = async (req: Request, res: Response) => {
-	const email = normalizeEmail(req.body.email ?? "");
-	const username = normalizeUsername(req.body.username ?? "");
-	const fullName = String(req.body.fullName ?? "").trim();
-	const password = String(req.body.password ?? "");
+	const body = (req.body ?? {}) as Record<string, unknown>;
+	const email = normalizeEmail(String(body.email ?? ""));
+	const username = normalizeUsername(String(body.username ?? ""));
+	const fullName = String(body.fullName ?? "").trim();
+	const password = String(body.password ?? "");
 
 	if (!email || !username || !fullName || password.length < 8) {
 		res.status(400).json({
@@ -77,8 +78,9 @@ const signup = async (req: Request, res: Response) => {
 };
 
 const login = async (req: Request, res: Response) => {
-	const email = normalizeEmail(req.body.email ?? "");
-	const password = String(req.body.password ?? "");
+	const body = (req.body ?? {}) as Record<string, unknown>;
+	const email = normalizeEmail(String(body.email ?? ""));
+	const password = String(body.password ?? "");
 	const user = await authenticateUser({ email, password });
 
 	if (!user) {

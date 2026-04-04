@@ -32,5 +32,31 @@ export default function createApp() {
 		next(err);
 	});
 
+	app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+		console.error("Unhandled API error:", err);
+		const code = typeof err === "object" && err && "code" in err ? String((err as { code?: unknown }).code ?? "") : "";
+		const message =
+			typeof err === "object" && err && "message" in err
+				? String((err as { message?: unknown }).message ?? "")
+				: "";
+
+		if (
+			code === "ECONNREFUSED" ||
+			code === "ENOTFOUND" ||
+			code === "ETIMEDOUT" ||
+			code === "EAI_AGAIN" ||
+			code === "HANDSHAKE_SSL_ERROR" ||
+			code === "EINVAL" ||
+			message.includes("getaddrinfo")
+		) {
+			res.status(503).json({
+				message: "Database is temporarily unavailable. Please try again shortly.",
+			});
+			return;
+		}
+
+		res.status(500).json({ message: "Internal server error." });
+	});
+
 	return app;
 }
