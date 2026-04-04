@@ -103,6 +103,9 @@ export default function PortfolioEditorPage() {
 	const [layoutFeedback, setLayoutFeedback] = useState("");
 	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
 	const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({});
+	const [pendingFocusExperienceId, setPendingFocusExperienceId] = useState<string | null>(
+		null,
+	);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
@@ -116,6 +119,7 @@ export default function PortfolioEditorPage() {
 	>(
 		{},
 	);
+	const experienceItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 	const hasAutoFittedDefaultLayout = useRef(false);
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -402,6 +406,15 @@ export default function PortfolioEditorPage() {
 	const togglePanel = (panelId: string) => {
 		setOpenPanels((current) => ({ ...current, [panelId]: !current[panelId] }));
 	};
+
+	useEffect(() => {
+		if (!pendingFocusExperienceId) return;
+		const node = experienceItemRefs.current[pendingFocusExperienceId];
+		if (!node) return;
+		node.scrollIntoView({ behavior: "smooth", block: "center" });
+		node.focus({ preventScroll: true });
+		setPendingFocusExperienceId(null);
+	}, [pendingFocusExperienceId, portfolio]);
 
 	const getLayoutOrder = (source: EditablePortfolio) =>
 		source.layout?.sectionOrder?.length
@@ -1594,16 +1607,22 @@ export default function PortfolioEditorPage() {
 								type="button"
 								variant="outline"
 								size="sm"
-								onClick={() =>
+								onClick={() => {
+									const newItem = createExperienceItem();
 									setPortfolio((current) =>
 										current
 											? {
 													...current,
-													experiences: [...current.experiences, createExperienceItem()],
+													experiences: [...current.experiences, newItem],
 												}
 											: current,
-									)
-								}
+									);
+									setOpenPanels((current) => ({
+										...current,
+										[`experience-${newItem.id}`]: true,
+									}));
+									setPendingFocusExperienceId(newItem.id);
+								}}
 							>
 								Add role
 							</Button>
@@ -1612,7 +1631,14 @@ export default function PortfolioEditorPage() {
 								const panelId = `experience-${item.id}`;
 								const isOpen = openPanels[panelId] ?? index === 0;
 								return (
-								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+								<div
+									key={item.id}
+									ref={(node) => {
+										experienceItemRefs.current[item.id] = node;
+									}}
+									tabIndex={-1}
+									className="space-y-3 rounded-xl bg-muted/20 p-4 outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent)"
+								>
 									<div className="flex items-center justify-between gap-2">
 										<div className="space-y-0.5">
 											<div className="text-xs font-medium text-muted-foreground">
