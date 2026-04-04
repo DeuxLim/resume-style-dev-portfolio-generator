@@ -85,7 +85,21 @@ ${portfolio.projects
 Custom Sections
 ${portfolio.customSections.length
 	? portfolio.customSections
-			.map((section) => `- ${section.title}: ${section.body}`)
+			.map((section) => {
+				if (section.type === "bullets") {
+					return `- ${section.title}:\n${section.items
+						.filter(Boolean)
+						.map((item) => `  - ${item}`)
+						.join("\n")}`;
+				}
+				if (section.type === "links") {
+					return `- ${section.title}:\n${section.links
+						.filter((link) => link.label || link.url)
+						.map((link) => `  - ${link.label || "Link"}: ${link.url}`)
+						.join("\n")}`;
+				}
+				return `- ${section.title}: ${section.body}`;
+			})
 			.join("\n")
 	: "- No custom sections"}
 `;

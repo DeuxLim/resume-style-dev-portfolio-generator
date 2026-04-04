@@ -47,13 +47,7 @@ const normalizeSectionOrder = (value: unknown): PortfolioSectionKey[] => {
 		}
 	}
 
-	for (const section of defaultPortfolioLayout.sectionOrder) {
-		if (!deduped.includes(section)) {
-			deduped.push(section);
-		}
-	}
-
-	return deduped;
+	return deduped.length > 0 ? deduped : [...defaultPortfolioLayout.sectionOrder];
 };
 
 const allowedSpans = new Set<PortfolioSectionSpan>([4, 6, 8, 12]);
@@ -160,7 +154,23 @@ const sanitizeEditablePortfolio = (
 		customSections: normalizeArray(input.customSections).map((item) => ({
 			id: String((item as { id?: string }).id ?? randomUUID()),
 			title: String((item as { title?: string }).title ?? ""),
+			type:
+				String((item as { type?: string }).type ?? "text") === "bullets"
+					? "bullets"
+					: String((item as { type?: string }).type ?? "text") === "links"
+						? "links"
+						: "text",
 			body: String((item as { body?: string }).body ?? ""),
+			items: normalizeArray((item as { items?: string[] }).items).map((entry) =>
+				String(entry ?? ""),
+			),
+			links: normalizeArray(
+				(item as { links?: Array<{ id?: string; label?: string; url?: string }> }).links,
+			).map((link) => ({
+				id: String(link.id ?? randomUUID()),
+				label: String(link.label ?? ""),
+				url: String(link.url ?? ""),
+			})),
 		})),
 		layout: {
 			sectionOrder: normalizeSectionOrder(input.layout?.sectionOrder),

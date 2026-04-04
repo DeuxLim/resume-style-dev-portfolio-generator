@@ -45,7 +45,10 @@ export const createTechCategory = (): TechCategory => ({
 export const createCustomSection = (): CustomSection => ({
 	id: makeId(),
 	title: "",
+	type: "text",
 	body: "",
+	items: [""],
+	links: [{ id: makeId(), label: "", url: "" }],
 });
 
 export const cloneEditablePortfolio = (
@@ -77,7 +80,15 @@ export const cloneEditablePortfolio = (
 		items: [...item.items],
 	})),
 	projects: portfolio.projects.map((item) => ({ ...item })),
-	customSections: portfolio.customSections.map((item) => ({ ...item })),
+	customSections: portfolio.customSections.map((item) => ({
+		...item,
+		type: item.type ?? "text",
+		body: item.body ?? "",
+		items: Array.isArray(item.items) ? [...item.items] : [""],
+		links: Array.isArray(item.links)
+			? item.links.map((link) => ({ ...link }))
+			: [],
+	})),
 });
 
 export const ensureHref = (value: string) => {

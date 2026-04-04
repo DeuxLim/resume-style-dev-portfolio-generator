@@ -26,7 +26,6 @@ export default function Content({
 }) {
 	const prefersReducedMotion = usePrefersReducedMotion();
 	const data = portfolio;
-	const hasGithubHeatmap = Boolean(data?.githubUsername?.trim());
 	const sectionOrder = data?.layout?.sectionOrder?.length
 		? data.layout.sectionOrder
 		: defaultPortfolioLayout.sectionOrder;
@@ -35,6 +34,10 @@ export default function Content({
 		...defaultPortfolioLayout.sectionSpans,
 		...(data?.layout?.sectionSpans ?? {}),
 	};
+	const sectionHeightByKey = {
+		...defaultPortfolioLayout.sectionHeights,
+		...(data?.layout?.sectionHeights ?? {}),
+	};
 
 	const sectionContentByKey: Record<PortfolioSectionKey, ReactNode> = {
 		about: <About paragraphs={data?.about} />,
@@ -42,36 +45,59 @@ export default function Content({
 		experience: <Experience items={data?.experiences} />,
 		tech: <TechStack categories={data?.techCategories} />,
 		projects: <Projects items={data?.projects} />,
-		heatmap: <Heatmap username={data?.githubUsername} />,
-		custom: (
-			<div className="space-y-3">
-				{data?.customSections?.map((section) => (
-					<div key={section.id} className="space-y-2">
-						<div className="text-base sm:text-lg font-bold">{section.title}</div>
-						<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
-							{section.body}
-						</p>
-					</div>
-				))}
+		heatmap: data?.githubUsername?.trim() ? (
+			<Heatmap username={data?.githubUsername} />
+		) : (
+			<div className="text-sm text-muted-foreground">
+				GitHub username is empty. Add one to show the heatmap.
 			</div>
 		),
-	};
-
-	const shouldRenderSection = (key: PortfolioSectionKey) => {
-		if (key === "heatmap") {
-			return hasGithubHeatmap;
-		}
-		if (key === "custom") {
-			return Boolean(data?.customSections?.length);
-		}
-		return true;
+		custom: (
+			<div className="space-y-3">
+				{data?.customSections?.length ? (
+					data.customSections.map((section) => (
+						<div key={section.id} className="space-y-2">
+							<div className="text-base sm:text-lg font-bold">{section.title}</div>
+							{section.type === "bullets" ? (
+								<ul className="list-disc pl-5 space-y-1 text-sm text-(--app-muted)">
+									{section.items?.filter(Boolean).map((item, index) => (
+										<li key={`${section.id}-item-${index}`}>{item}</li>
+									))}
+								</ul>
+							) : section.type === "links" ? (
+								<div className="space-y-1.5">
+									{section.links
+										?.filter((link) => link.label || link.url)
+										.map((link) => (
+											<a
+												key={link.id}
+												href={link.url || undefined}
+												target={link.url ? "_blank" : undefined}
+												rel={link.url ? "noreferrer noopener" : undefined}
+												className="block text-sm text-(--app-muted) underline underline-offset-2 break-all"
+											>
+												{link.label || link.url}
+											</a>
+										))}
+								</div>
+							) : (
+								<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
+									{section.body}
+								</p>
+							)}
+						</div>
+					))
+				) : (
+					<div className="text-sm text-muted-foreground">No custom sections yet.</div>
+				)}
+			</div>
+		),
 	};
 
 	return (
 		<div className="grid grid-cols-4 md:grid-cols-12 gap-3 sm:gap-4">
 			{sectionOrder
 				.filter((key, index, arr) => arr.indexOf(key) === index)
-				.filter(shouldRenderSection)
 				.map((sectionKey, index) => (
 				<motion.div
 					key={sectionKey}
@@ -87,9 +113,8 @@ export default function Content({
 							? undefined
 							: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
 					}
-					className={`col-span-4 ${mdSpanClass[sectionSpanByKey[sectionKey] ?? 6]} ${
-						sectionKey === "tech" ? "row-span-2" : ""
-					} app-card p-2.5 sm:p-4`}
+					className={`col-span-4 ${mdSpanClass[sectionSpanByKey[sectionKey] ?? 6]} app-card p-2.5 sm:p-4`}
+					style={{ gridRowEnd: `span ${sectionHeightByKey[sectionKey] ?? 6}` }}
 				>
 					{sectionContentByKey[sectionKey]}
 				</motion.div>

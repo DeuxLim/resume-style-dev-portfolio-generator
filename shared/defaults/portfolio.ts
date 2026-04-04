@@ -252,7 +252,10 @@ export const samplePortfolio: PortfolioRecord = {
 		{
 			id: "builder-note",
 			title: "What This App Is",
+			type: "text",
 			body: "This portfolio now works as a builder for other developers too. Each user can sign up, edit their profile, manage sections, and get a public portfolio URL on the same app.",
+			items: [],
+			links: [],
 		},
 	],
 	chatEnabled: true,

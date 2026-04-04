@@ -42,6 +42,7 @@ import GridLayout, {
 import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
 import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 import type {
+	CustomSection,
 	PortfolioSectionKey,
 	PortfolioSectionSpan,
 } from "../../../shared/types/portfolio.types";
@@ -90,6 +91,7 @@ const GRID_COLS = 12;
 const GRID_ALLOWED_SPANS: PortfolioSectionSpan[] = [4, 6, 8, 12];
 const GRID_MIN_HEIGHT = 4;
 const GRID_MAX_HEIGHT = 48;
+const MAX_CUSTOM_SECTIONS = 8;
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
@@ -401,6 +403,11 @@ export default function PortfolioEditorPage() {
 			? source.layout.sectionOrder
 			: defaultPortfolioLayout.sectionOrder;
 
+	const getHiddenSections = (source: EditablePortfolio) => {
+		const active = new Set(getLayoutOrder(source));
+		return defaultPortfolioLayout.sectionOrder.filter((section) => !active.has(section));
+	};
+
 	const getSectionSpan = (
 		source: EditablePortfolio,
 		sectionKey: PortfolioSectionKey,
@@ -413,10 +420,7 @@ export default function PortfolioEditorPage() {
 
 	const normalizeOrder = (nextOrder: PortfolioSectionKey[]) => {
 		const deduped = nextOrder.filter((key, index, arr) => arr.indexOf(key) === index);
-		for (const key of defaultPortfolioLayout.sectionOrder) {
-			if (!deduped.includes(key)) deduped.push(key);
-		}
-		return deduped;
+		return deduped.length > 0 ? deduped : [...defaultPortfolioLayout.sectionOrder];
 	};
 
 	const snapToAllowedSpan = (value: number): PortfolioSectionSpan => {
@@ -469,6 +473,71 @@ export default function PortfolioEditorPage() {
 		heatmap: getSectionHeight(source, "heatmap"),
 		custom: getSectionHeight(source, "custom"),
 	});
+
+	const removeSectionFromLayout = (sectionKey: PortfolioSectionKey) => {
+		setPortfolio((current) => {
+			if (!current) return current;
+			const order = getLayoutOrder(current);
+			if (order.length <= 1 || !order.includes(sectionKey)) return current;
+			return {
+				...current,
+				layout: {
+					...current.layout,
+					sectionOrder: order.filter((key) => key !== sectionKey),
+				},
+			};
+		});
+		setLayoutFeedback(`Removed ${SECTION_META[sectionKey].title} from canvas.`);
+	};
+
+	const addSectionBackToLayout = (sectionKey: PortfolioSectionKey) => {
+		setPortfolio((current) => {
+			if (!current) return current;
+			const order = getLayoutOrder(current);
+			if (order.includes(sectionKey)) return current;
+			return {
+				...current,
+				layout: {
+					...current.layout,
+					sectionOrder: [...order, sectionKey],
+				},
+			};
+		});
+		setPendingAutoFit(true);
+		setLayoutFeedback(`Added ${SECTION_META[sectionKey].title} back to canvas.`);
+	};
+
+	const addCustomSectionWithType = (type: CustomSection["type"] = "text") => {
+		let wasAdded = false;
+		setPortfolio((current) => {
+			if (!current) return current;
+			if (current.customSections.length >= MAX_CUSTOM_SECTIONS) return current;
+			const section = createCustomSection();
+			section.type = type;
+			section.body = type === "text" ? "" : section.body;
+			section.items = type === "bullets" ? [""] : [];
+			section.links =
+				type === "links" ? [{ id: `${Date.now()}-link`, label: "", url: "" }] : [];
+			wasAdded = true;
+			const nextOrder: PortfolioSectionKey[] = getLayoutOrder(current).includes("custom")
+				? getLayoutOrder(current)
+				: [...getLayoutOrder(current), "custom"];
+			return {
+				...current,
+				customSections: [...current.customSections, section],
+				layout: {
+					...current.layout,
+					sectionOrder: nextOrder,
+				},
+			};
+		});
+		if (!wasAdded) {
+			setLayoutFeedback(`Custom sections limit reached (${MAX_CUSTOM_SECTIONS}).`);
+			return;
+		}
+		setPendingAutoFit(true);
+		setLayoutFeedback("Created a custom section. Edit its content below.");
+	};
 
 	const buildGridLayoutFromPortfolio = (source: EditablePortfolio): GridLayoutModel => {
 		const order = getLayoutOrder(source);
@@ -589,9 +658,33 @@ export default function PortfolioEditorPage() {
 						{source.customSections.map((section) => (
 							<div key={section.id} className="space-y-2">
 								<div className="text-base sm:text-lg font-bold">{section.title}</div>
-								<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
-									{section.body}
-								</p>
+								{section.type === "bullets" ? (
+									<ul className="list-disc pl-5 space-y-1 text-sm text-(--app-muted)">
+										{section.items?.filter(Boolean).map((item, index) => (
+											<li key={`${section.id}-item-${index}`}>{item}</li>
+										))}
+									</ul>
+								) : section.type === "links" ? (
+									<div className="space-y-1.5">
+										{section.links
+											?.filter((link) => link.label || link.url)
+											.map((link) => (
+												<a
+													key={link.id}
+													href={link.url || undefined}
+													target={link.url ? "_blank" : undefined}
+													rel={link.url ? "noreferrer noopener" : undefined}
+													className="block text-sm text-(--app-muted) underline underline-offset-2 break-all"
+												>
+													{link.label || link.url}
+												</a>
+											))}
+									</div>
+								) : (
+									<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
+										{section.body}
+									</p>
+								)}
 							</div>
 						))}
 					</div>
@@ -603,6 +696,336 @@ export default function PortfolioEditorPage() {
 			default:
 				return null;
 		}
+	};
+
+	const renderCustomSectionsEditor = () => {
+		if (!portfolio) return null;
+		return (
+			<div className="space-y-3">
+			<div className="flex flex-wrap gap-2">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
+					onClick={() => addCustomSectionWithType("text")}
+				>
+					Add text section
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
+					onClick={() => addCustomSectionWithType("bullets")}
+				>
+					Add bullet list
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
+					onClick={() => addCustomSectionWithType("links")}
+				>
+					Add links section
+				</Button>
+			</div>
+			<div className="text-xs text-muted-foreground">
+				{portfolio.customSections.length} / {MAX_CUSTOM_SECTIONS} custom sections
+			</div>
+			{portfolio.customSections.map((item) => (
+				<div key={item.id} className="space-y-2 rounded-lg border p-3">
+					<Input
+						placeholder="Section title"
+						value={item.title}
+						onChange={(event) =>
+							setPortfolio((current) =>
+								current
+									? {
+											...current,
+											customSections: current.customSections.map((entry) =>
+												entry.id === item.id
+													? { ...entry, title: event.target.value }
+													: entry,
+											),
+										}
+									: current,
+							)
+						}
+					/>
+					<div className="space-y-2">
+						<Label>Type</Label>
+						<select
+							className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+							value={item.type}
+							onChange={(event) =>
+								setPortfolio((current) =>
+									current
+										? {
+												...current,
+												customSections: current.customSections.map((entry) =>
+													entry.id === item.id
+														? {
+																...entry,
+																type: event.target.value as CustomSection["type"],
+																items:
+																	event.target.value === "bullets"
+																		? entry.items?.length
+																			? entry.items
+																			: [""]
+																		: [],
+																links:
+																	event.target.value === "links"
+																		? entry.links?.length
+																			? entry.links
+																			: [{ id: `${Date.now()}-link`, label: "", url: "" }]
+																		: [],
+															}
+														: entry,
+												),
+											}
+										: current,
+								)
+							}
+						>
+							<option value="text">Text</option>
+							<option value="bullets">Bullet List</option>
+							<option value="links">Links</option>
+						</select>
+					</div>
+					{item.type === "bullets" ? (
+						<div className="space-y-2">
+							{item.items.map((bullet, bulletIndex) => (
+								<div key={`${item.id}-bullet-${bulletIndex}`} className="flex gap-2">
+									<Input
+										placeholder="Bullet item"
+										value={bullet}
+										onChange={(event) =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? {
+																			...entry,
+																			items: entry.items.map((row, rowIndex) =>
+																				rowIndex === bulletIndex ? event.target.value : row,
+																			),
+																		}
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									/>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? {
+																			...entry,
+																			items:
+																				entry.items.length > 1
+																					? entry.items.filter((_, i) => i !== bulletIndex)
+																					: entry.items,
+																		}
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									>
+										Remove
+									</Button>
+								</div>
+							))}
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									setPortfolio((current) =>
+										current
+											? {
+													...current,
+													customSections: current.customSections.map((entry) =>
+														entry.id === item.id
+															? { ...entry, items: [...entry.items, ""] }
+															: entry,
+													),
+												}
+											: current,
+									)
+								}
+							>
+								Add bullet item
+							</Button>
+						</div>
+					) : item.type === "links" ? (
+						<div className="space-y-2">
+							{item.links.map((link, linkIndex) => (
+								<div key={link.id || `${item.id}-link-${linkIndex}`} className="space-y-2 rounded-md border p-2">
+									<Input
+										placeholder="Link label"
+										value={link.label}
+										onChange={(event) =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? {
+																			...entry,
+																			links: entry.links.map((row, rowIndex) =>
+																				rowIndex === linkIndex
+																					? { ...row, label: event.target.value }
+																					: row,
+																			),
+																		}
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									/>
+									<Input
+										placeholder="https://example.com"
+										value={link.url}
+										onChange={(event) =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? {
+																			...entry,
+																			links: entry.links.map((row, rowIndex) =>
+																				rowIndex === linkIndex
+																					? { ...row, url: event.target.value }
+																					: row,
+																			),
+																		}
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									/>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? {
+																			...entry,
+																			links:
+																				entry.links.length > 1
+																					? entry.links.filter((_, i) => i !== linkIndex)
+																					: entry.links,
+																		}
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									>
+										Remove link
+									</Button>
+								</div>
+							))}
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									setPortfolio((current) =>
+										current
+											? {
+													...current,
+													customSections: current.customSections.map((entry) =>
+														entry.id === item.id
+															? {
+																	...entry,
+																	links: [
+																		...entry.links,
+																		{ id: `${Date.now()}-link`, label: "", url: "" },
+																	],
+																}
+															: entry,
+													),
+												}
+											: current,
+									)
+								}
+							>
+								Add link
+							</Button>
+						</div>
+					) : (
+						<Textarea
+							rows={4}
+							value={item.body}
+							onChange={(event) =>
+								setPortfolio((current) =>
+									current
+										? {
+												...current,
+												customSections: current.customSections.map((entry) =>
+													entry.id === item.id
+														? { ...entry, body: event.target.value }
+														: entry,
+												),
+											}
+										: current,
+								)
+							}
+						/>
+					)}
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() =>
+							setPortfolio((current) =>
+								current
+									? {
+											...current,
+											customSections: current.customSections.filter(
+												(entry) => entry.id !== item.id,
+											),
+										}
+									: current,
+							)
+						}
+					>
+						Remove section
+					</Button>
+				</div>
+			))}
+			</div>
+		);
 	};
 
 	if (sessionQuery.isLoading || portfolioQuery.isLoading) {
@@ -1451,6 +1874,7 @@ export default function PortfolioEditorPage() {
 										enabled: true,
 										bounded: true,
 										handle: ".layout-drag-handle",
+										cancel: ".layout-block-action",
 									}}
 									resizeConfig={{
 										enabled: true,
@@ -1506,8 +1930,20 @@ export default function PortfolioEditorPage() {
 												<div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 													{SECTION_META[sectionKey].title}
 												</div>
-												<div className="text-[11px] text-muted-foreground">
-													{getSectionSpan(portfolio, sectionKey)} / 12
+												<div className="flex items-center gap-2">
+													<div className="text-[11px] text-muted-foreground">
+														{getSectionSpan(portfolio, sectionKey)} / 12
+													</div>
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														className="layout-block-action h-6 px-2 text-[11px]"
+														disabled={getLayoutOrder(portfolio).length <= 1}
+														onClick={() => removeSectionFromLayout(sectionKey)}
+													>
+														Remove
+													</Button>
 												</div>
 											</div>
 											<div
@@ -1530,6 +1966,26 @@ export default function PortfolioEditorPage() {
 								If a move or resize is constrained, you will see a hint after drop.
 								Resize from the bottom-right corner to change card width.
 							</div>
+							{getHiddenSections(portfolio).length > 0 && (
+								<div className="space-y-2 rounded-md border bg-muted/30 px-3 py-2">
+									<div className="text-xs text-muted-foreground">
+										Hidden blocks
+									</div>
+									<div className="flex flex-wrap gap-2">
+										{getHiddenSections(portfolio).map((sectionKey) => (
+											<Button
+												key={sectionKey}
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => addSectionBackToLayout(sectionKey)}
+											>
+												Add {SECTION_META[sectionKey].title}
+											</Button>
+										))}
+									</div>
+								</div>
+							)}
 
 							<div className="flex flex-wrap gap-2">
 								<Button
@@ -1596,6 +2052,15 @@ export default function PortfolioEditorPage() {
 									Apply current canvas
 								</Button>
 							</div>
+							<Card className="border-border/70 shadow-none">
+								<CardHeader>
+									<CardTitle className="text-base">Custom Section Editor</CardTitle>
+									<CardDescription>
+										Create and edit custom sections directly from the Layout tab.
+									</CardDescription>
+								</CardHeader>
+								<CardContent>{renderCustomSectionsEditor()}</CardContent>
+							</Card>
 
 							{layoutFeedback && (
 								<div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
@@ -1612,84 +2077,7 @@ export default function PortfolioEditorPage() {
 							<CardTitle>Custom sections</CardTitle>
 							<CardDescription>Add extra content blocks.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? {
-													...current,
-													customSections: [...current.customSections, createCustomSection()],
-												}
-											: current,
-									)
-								}
-							>
-								Add section
-							</Button>
-							{portfolio.customSections.map((item) => (
-								<div key={item.id} className="space-y-2 rounded-lg border p-3">
-									<Input
-										placeholder="Section title"
-										value={item.title}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, title: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Textarea
-										rows={4}
-										value={item.body}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, body: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.filter(
-																(entry) => entry.id !== item.id,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove section
-									</Button>
-								</div>
-							))}
-						</CardContent>
+						<CardContent>{renderCustomSectionsEditor()}</CardContent>
 					</Card>
 
 					<Card className="border-border/70 shadow-none">

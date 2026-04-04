@@ -30,7 +30,10 @@ export type TechCategory = {
 export type CustomSection = {
 	id: string;
 	title: string;
+	type: "text" | "bullets" | "links";
 	body: string;
+	items: string[];
+	links: { id: string; label: string; url: string }[];
 };
 
 export type PortfolioSectionKey =

@@ -67,6 +67,26 @@ const parseJson = <T>(value: unknown, fallback: T): T => {
 	return fallback;
 };
 
+const normalizeCustomSections = (sections: CustomSection[]): CustomSection[] =>
+	sections.map((section) => {
+		const rawType = String((section as { type?: string }).type ?? "text");
+		const type = rawType === "bullets" ? "bullets" : rawType === "links" ? "links" : "text";
+		return {
+			id: String(section.id),
+			title: String(section.title ?? ""),
+			type,
+			body: String(section.body ?? ""),
+			items: Array.isArray(section.items) ? section.items.map((item) => String(item ?? "")) : [],
+			links: Array.isArray(section.links)
+				? section.links.map((link) => ({
+						id: String(link.id ?? ""),
+						label: String(link.label ?? ""),
+						url: String(link.url ?? ""),
+					}))
+				: [],
+		};
+	});
+
 const normalizeLayout = (
 	value: unknown,
 	fallback: PortfolioLayout,
@@ -80,11 +100,6 @@ const normalizeLayout = (
 			allowed.has(entry as PortfolioLayout["sectionOrder"][number]),
 		)
 		.filter((entry, index, arr) => arr.indexOf(entry) === index);
-	for (const section of fallback.sectionOrder) {
-		if (!deduped.includes(section)) {
-			deduped.push(section);
-		}
-	}
 	const nextSpans = { ...fallback.sectionSpans };
 	const rawSpans =
 		parsed?.sectionSpans && typeof parsed.sectionSpans === "object"
@@ -109,7 +124,7 @@ const normalizeLayout = (
 		}
 	}
 	return {
-		sectionOrder: deduped,
+		sectionOrder: deduped.length > 0 ? deduped : [...fallback.sectionOrder],
 		sectionSpans: nextSpans,
 		sectionHeights: nextHeights,
 	};
@@ -190,6 +205,8 @@ export const mapPortfolioRow = (
 	if (row.updated_at) {
 		portfolio.updatedAt = row.updated_at.toISOString();
 	}
+
+	portfolio.customSections = normalizeCustomSections(portfolio.customSections);
 
 	return portfolio;
 };
