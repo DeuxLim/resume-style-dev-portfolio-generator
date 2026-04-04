@@ -8,6 +8,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import PortfolioPage from "@/pages/PortfolioPage";
 import PortfolioEditorPage from "@/pages/PortfolioEditorPage";
 import SamplePortfolioPage from "@/pages/SamplePortfolioPage";
+import ResumeBuilderPage from "@/pages/ResumeBuilderPage";
 
 const routes = createBrowserRouter([
 	{
@@ -19,6 +20,7 @@ const routes = createBrowserRouter([
 			{ path: "signup", Component: SignupPage },
 			{ path: "dashboard", Component: DashboardPage },
 			{ path: "dashboard/edit", Component: PortfolioEditorPage },
+			{ path: "dashboard/resume", Component: ResumeBuilderPage },
 		],
 	},
 	{

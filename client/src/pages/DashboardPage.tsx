@@ -18,7 +18,15 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { Globe, Layers, PencilLine, Plus, Trash2, TrendingUp } from "lucide-react";
+import {
+	FileText,
+	Globe,
+	Layers,
+	PencilLine,
+	Plus,
+	Trash2,
+	TrendingUp,
+} from "lucide-react";
 
 export default function DashboardPage() {
 	const navigate = useNavigate();
@@ -130,6 +138,13 @@ export default function DashboardPage() {
 						>
 							<PencilLine className="size-4" />
 							Edit active
+						</Link>
+						<Link
+							to="/dashboard/resume"
+							className={buttonVariants({ variant: "outline" })}
+						>
+							<FileText className="size-4" />
+							Resume builder
 						</Link>
 						<Button
 							type="button"

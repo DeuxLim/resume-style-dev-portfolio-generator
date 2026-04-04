@@ -2,6 +2,7 @@ import ThemeToggleButton from "@/components/ThemeToggleButton";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
 import { ensureHref } from "@/lib/portfolio";
+import { apiBaseUrl } from "@/lib/axios.client";
 import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
 import {
 	IoBriefcase,
@@ -21,6 +22,9 @@ export default function Header({ portfolio }: { portfolio?: PublicPortfolio }) {
 	const data = portfolio ?? samplePortfolio;
 	const avatarSrc = getAvatarUrl(data.avatarUrl);
 	const coverSrc = resolveAssetUrl(data.coverUrl) || cover;
+	const resumeHref = data.username
+		? `${apiBaseUrl}/resumes/${data.username}/pdf?download=1`
+		: "/resume.pdf";
 
 	return (
 		<motion.div
@@ -73,7 +77,7 @@ export default function Header({ portfolio }: { portfolio?: PublicPortfolio }) {
 
 								<a
 									className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-none px-2 transition-colors focus-visible:ring-2 focus-visible:ring-(--app-accent) focus-visible:outline-none active:scale-[0.98] sm:h-9 sm:w-24"
-									href="/resume.pdf"
+									href={resumeHref}
 									download
 								>
 									<FaDownload className="text-sm text-(--app-accent) sm:text-base" />

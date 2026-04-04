@@ -7,11 +7,8 @@ export default function Heatmap({ username }: { username?: string }) {
 	const [isCompact, setIsCompact] = useState(false);
 	const githubUsername = username?.trim() ?? "";
 
-	if (!githubUsername) {
-		return null;
-	}
-
 	useEffect(() => {
+		if (!githubUsername) return;
 		const mediaQuery = window.matchMedia?.("(max-width: 640px)");
 		if (!mediaQuery) return;
 
@@ -20,7 +17,11 @@ export default function Heatmap({ username }: { username?: string }) {
 		mediaQuery.addEventListener("change", handleChange);
 
 		return () => mediaQuery.removeEventListener("change", handleChange);
-	}, []);
+	}, [githubUsername]);
+
+	if (!githubUsername) {
+		return null;
+	}
 
 	return (
 		<div className="space-y-4 w-full">
