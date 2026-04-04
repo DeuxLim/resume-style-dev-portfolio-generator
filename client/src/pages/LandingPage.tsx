@@ -13,26 +13,28 @@ import {
 	CheckCircle2,
 	CopyCheck,
 	Eye,
+	FileText,
 	LayoutTemplate,
 	Rocket,
+	Workflow,
 } from "lucide-react";
 import PortfolioMiniPreview from "@/components/Landing/PortfolioMiniPreview";
 
 const pillars = [
 	{
-		title: "Fast Setup",
+		title: "Resume Builder First",
 		description:
-			"Start from a ready structure, fill your details, and publish without building a site from scratch.",
+			"Build an ATS-ready resume from guided sections, then export instantly as a PDF.",
 		icon: Rocket,
 	},
 	{
-		title: "Readable Portfolio Layout",
+		title: "Portfolio From The Same Data",
 		description:
-			"Sections are organized like modern developer portfolios so recruiters can scan your strongest work quickly.",
+			"Your resume content can drive the web portfolio so your details stay consistent in both formats.",
 		icon: LayoutTemplate,
 	},
 	{
-		title: "Version Control for Content",
+		title: "Versioned Content Control",
 		description:
 			"Keep multiple versions for different roles and choose which one stays live on your public URL.",
 		icon: CopyCheck,
@@ -46,37 +48,37 @@ export default function LandingPage() {
 				<div className="space-y-8 sm:space-y-10">
 					<div className="space-y-5 sm:space-y-6">
 						<h1 className="max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-							Build a resume-style web developer portfolio in one sitting.
+							Build your resume and portfolio together in one workflow.
 						</h1>
 						<p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-							Write once, publish once, and keep your link updated. The builder
-							uses a resume-style layout recruiters already know how to scan.
+							Write your resume once, generate a downloadable PDF, and sync the
+							same content into your live portfolio website.
 						</p>
 					</div>
 
 					<div className="flex flex-wrap gap-4">
 						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
-							Create account
+							Start building
 						</Link>
 						<Link
-							to="/sample"
+							to="/dashboard/resume"
 							className={buttonVariants({ size: "lg", variant: "outline" })}
 						>
-							View full sample
+							Open resume builder
 						</Link>
 					</div>
 
 					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="rounded-xl border bg-background/80 p-5 sm:p-6">
-							<div className="text-sm font-medium">Recruiter-friendly flow</div>
+							<div className="text-sm font-medium">ATS-friendly PDF export</div>
 							<div className="mt-1 text-sm text-muted-foreground">
-								Intro, experience, projects, and stack in a clear reading order.
+								Generate a clean PDF resume directly from your saved content.
 							</div>
 						</div>
 						<div className="rounded-xl border bg-background/80 p-5 sm:p-6">
-							<div className="text-sm font-medium">Stable public link</div>
+							<div className="text-sm font-medium">Sync to live portfolio</div>
 							<div className="mt-1 text-sm text-muted-foreground">
-								Your URL stays the same while you improve content over time.
+								Push resume updates into your website without duplicating edits.
 							</div>
 						</div>
 					</div>
@@ -89,10 +91,10 @@ export default function LandingPage() {
 							Sample Preview
 						</Badge>
 						<CardTitle className="text-2xl leading-tight sm:text-3xl">
-							Quick look at the generated style
+							Preview the generated portfolio style
 						</CardTitle>
 						<CardDescription className="text-sm sm:text-base">
-							A compact side preview so you can scan the resume-style layout at a glance.
+							A compact side preview of the website generated from your profile data.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-5 p-6 pt-0 sm:p-8 sm:pt-0">
@@ -110,18 +112,69 @@ export default function LandingPage() {
 			<section className="space-y-4">
 				<div className="space-y-2">
 					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-						Full-size sample portfolio output
+						Sample PDF resume output
 					</h2>
 					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-						This larger preview highlights spacing, section hierarchy, and readability
-						of the final resume-style portfolio page.
+						See a generated resume PDF exactly how it can be downloaded and shared with recruiters.
 					</p>
 				</div>
 				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/5 shadow-none">
 					<CardContent className="space-y-5 p-6 sm:p-8">
-						<PortfolioMiniPreview large />
-						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
-							your-domain.com/your-username
+						<div className="overflow-hidden rounded-xl border bg-background">
+							<div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+								<FileText className="size-3.5" />
+								generated-resume.pdf
+							</div>
+							<iframe
+								title="Sample generated resume PDF"
+								src="/resume.pdf"
+								className="h-[28rem] w-full sm:h-[36rem]"
+							/>
+						</div>
+						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+							You can reorder sections, save updates, and export this version as a PDF from the resume builder.
+						</div>
+					</CardContent>
+				</Card>
+			</section>
+
+			<section className="space-y-4">
+				<div className="space-y-2">
+					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+						Resume and portfolio syncing
+					</h2>
+					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
+						Edit in one place, sync once, and keep your PDF resume and portfolio website aligned.
+					</p>
+				</div>
+				<Card className="border-border/70 shadow-none">
+					<CardContent className="grid gap-4 p-6 text-sm sm:grid-cols-3 sm:p-7">
+						<div className="rounded-lg border bg-background/90 p-4">
+							<div className="mb-2 flex items-center gap-2 font-medium">
+								<FileText className="size-4 text-sky-600" />
+								Resume Builder
+							</div>
+							<p className="text-muted-foreground">
+								Update summary, experience, skills, and projects with guided inputs.
+							</p>
+						</div>
+						<div className="rounded-lg border bg-background/90 p-4">
+							<div className="mb-2 flex items-center gap-2 font-medium">
+								<Workflow className="size-4 text-emerald-600" />
+								Sync Action
+							</div>
+							<p className="text-muted-foreground">
+								Use "Sync to Portfolio" to copy your latest resume data into your site profile.
+							</p>
+						</div>
+						<div className="rounded-lg border bg-background/90 p-4">
+							<div className="mb-2 flex items-center gap-2 font-medium">
+								<Eye className="size-4 text-violet-600" />
+								Live Portfolio
+							</div>
+							<p className="text-muted-foreground">
+								Your public website updates with consistent role history, skills, and project highlights.
+							</p>
 						</div>
 					</CardContent>
 				</Card>
@@ -151,21 +204,21 @@ export default function LandingPage() {
 							<div className="mt-0.5 rounded-md border bg-muted/30 px-2 py-0.5 text-xs font-semibold">
 								1
 							</div>
-							<div>Create an account and open your portfolio dashboard.</div>
+							<div>Create an account and open the resume builder.</div>
 						</div>
 						<Separator />
 						<div className="flex items-start gap-3">
 							<div className="mt-0.5 rounded-md border bg-muted/30 px-2 py-0.5 text-xs font-semibold">
 								2
 							</div>
-							<div>Fill guided sections for intro, experience, projects, and stack.</div>
+							<div>Fill guided sections, save, and export your PDF resume.</div>
 						</div>
 						<Separator />
 						<div className="flex items-start gap-3">
 							<div className="mt-0.5 rounded-md border bg-muted/30 px-2 py-0.5 text-xs font-semibold">
 								3
 							</div>
-							<div>Publish your version and keep iterating from the editor anytime.</div>
+							<div>Sync to portfolio so your live website matches your latest resume.</div>
 						</div>
 					</CardContent>
 				</Card>
@@ -179,15 +232,15 @@ export default function LandingPage() {
 					<CardContent className="space-y-4 p-6 pt-2 text-sm text-muted-foreground sm:p-7 sm:pt-2">
 						<div className="flex items-start gap-2 rounded-md border px-3 py-2">
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-							Portfolio output stays consistent and professional.
+							PDF resume and portfolio stay consistent with one source of truth.
 						</div>
 						<div className="flex items-start gap-2 rounded-md border px-3 py-2">
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-							Update content without rebuilding your site each time.
+							Update content once and reuse it across both job application formats.
 						</div>
 						<div className="flex items-start gap-2 rounded-md border px-3 py-2">
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-							Easy control of what recruiters see on your live link.
+							Easy control of what recruiters download and what they view online.
 						</div>
 					</CardContent>
 				</Card>
