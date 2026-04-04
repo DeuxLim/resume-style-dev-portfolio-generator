@@ -35,7 +35,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { ChevronDown, ChevronUp, Layers3 } from "lucide-react";
 import GridLayout, {
-	useContainerWidth,
 	type Layout as GridLayoutModel,
 	type LayoutItem as GridLayoutItem,
 } from "react-grid-layout";
@@ -106,14 +105,11 @@ export default function PortfolioEditorPage() {
 	const [pendingFocusExperienceId, setPendingFocusExperienceId] = useState<string | null>(
 		null,
 	);
+	const [layoutWidth, setLayoutWidth] = useState(0);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
-	const { width: layoutWidth, containerRef: layoutContainerRef, measureWidth } =
-		useContainerWidth({
-		measureBeforeMount: false,
-		initialWidth: 0,
-	});
+	const layoutContainerRef = useRef<HTMLDivElement | null>(null);
 	const sectionContentRefs = useRef<
 		Partial<Record<PortfolioSectionKey, HTMLDivElement | null>>
 	>(
@@ -149,16 +145,25 @@ export default function PortfolioEditorPage() {
 
 	useEffect(() => {
 		if (activeTab !== "layout") return;
-		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		const rafId = requestAnimationFrame(() => {
-			measureWidth();
-			timeoutId = setTimeout(() => measureWidth(), 80);
-		});
+		const container = layoutContainerRef.current;
+		if (!container) return;
+
+		const updateWidth = () => {
+			setLayoutWidth(Math.max(0, Math.floor(container.clientWidth)));
+		};
+
+		updateWidth();
+		const rafId = requestAnimationFrame(updateWidth);
+		const timeoutId = setTimeout(updateWidth, 120);
+		const observer = new ResizeObserver(updateWidth);
+		observer.observe(container);
+
 		return () => {
 			cancelAnimationFrame(rafId);
-			if (timeoutId) clearTimeout(timeoutId);
+			clearTimeout(timeoutId);
+			observer.disconnect();
 		};
-	}, [activeTab, measureWidth]);
+	}, [activeTab]);
 
 	const toGridRowsFromPixels = (pixelHeight: number) =>
 		Math.ceil(pixelHeight / (26 + 12));
