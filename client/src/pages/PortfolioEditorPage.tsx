@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronUp, Layers3 } from "lucide-react";
+import { ChevronDown, ChevronUp, Layers3, X } from "lucide-react";
 import GridLayout, {
 	type Layout as GridLayoutModel,
 	type LayoutItem as GridLayoutItem,
@@ -105,6 +105,7 @@ export default function PortfolioEditorPage() {
 	const [pendingFocusExperienceId, setPendingFocusExperienceId] = useState<string | null>(
 		null,
 	);
+	const [isCustomSectionEditorOpen, setIsCustomSectionEditorOpen] = useState(false);
 	const [layoutWidth, setLayoutWidth] = useState(0);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
@@ -2235,6 +2236,14 @@ export default function PortfolioEditorPage() {
 								>
 									Apply current canvas
 								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setIsCustomSectionEditorOpen(true)}
+								>
+									Open custom section editor
+								</Button>
 							</div>
 
 							{getHiddenSections(portfolio).length > 0 && (
@@ -2257,16 +2266,6 @@ export default function PortfolioEditorPage() {
 									</div>
 								</div>
 							)}
-
-							<Card className="shadow-none">
-								<CardHeader>
-									<CardTitle className="text-base">Custom Section Editor</CardTitle>
-									<CardDescription>
-										Create and edit custom sections directly from the Layout tab.
-									</CardDescription>
-								</CardHeader>
-								<CardContent>{renderCustomSectionsEditor()}</CardContent>
-							</Card>
 
 							{layoutFeedback && (
 								<div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
@@ -2447,6 +2446,42 @@ export default function PortfolioEditorPage() {
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			{isCustomSectionEditorOpen && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">
+					<div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
+						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
+							<div>
+								<div className="text-base font-semibold">Custom Section Editor</div>
+								<div className="text-xs text-muted-foreground">
+									Create and edit custom sections without leaving the layout flow.
+								</div>
+							</div>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => setIsCustomSectionEditorOpen(false)}
+							>
+								<X className="size-4" />
+							</Button>
+						</div>
+						<div className="max-h-[78vh] overflow-y-auto px-4 py-4 sm:px-5">
+							{renderCustomSectionsEditor()}
+						</div>
+						<div className="flex justify-end border-t px-4 py-3 sm:px-5">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setIsCustomSectionEditorOpen(false)}
+							>
+								Done
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</main>
 	);
 }
