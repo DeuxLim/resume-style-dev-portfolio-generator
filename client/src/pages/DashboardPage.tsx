@@ -83,6 +83,8 @@ export default function DashboardPage() {
 	}, [portfolioQuery.data?.username, sessionQuery.data?.user?.username]);
 
 	const activeVersion = versionsQuery.data?.find((version) => version.isActive);
+	const displayName =
+		sessionQuery.data?.user?.fullName ?? sessionQuery.data?.user?.username ?? "";
 
 	if (
 		sessionQuery.isLoading ||
@@ -98,7 +100,14 @@ export default function DashboardPage() {
 				<Card className="border-border/70 shadow-none">
 					<CardHeader>
 						<div className="flex items-center justify-between gap-2">
-							<CardTitle className="text-lg">Live portfolio</CardTitle>
+							<CardTitle className="text-lg">
+								Live portfolio
+								{displayName ? (
+									<span className="ml-2 text-sm font-normal text-muted-foreground">
+										{displayName}
+									</span>
+								) : null}
+							</CardTitle>
 							{activeVersion && (
 								<Badge variant="secondary">Active: {activeVersion.name}</Badge>
 							)}
