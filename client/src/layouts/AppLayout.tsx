@@ -81,18 +81,11 @@ export default function AppLayout() {
 									<Link to="/dashboard/edit?newVersion=1" className={buttonVariants({ size: "sm" })}>
 										New version
 									</Link>
-									<Link
-										to="/sample"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											isActivePath("/sample") && "bg-muted text-foreground",
-										)}
-									>
-										Sample output
-									</Link>
 									{publicPortfolioPath ? (
 										<Link
 											to={publicPortfolioPath}
+											target="_blank"
+											rel="noopener noreferrer"
 											className={cn(
 												buttonVariants({ size: "sm", variant: "ghost" }),
 												location.pathname === publicPortfolioPath &&

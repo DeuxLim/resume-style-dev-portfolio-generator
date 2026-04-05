@@ -16,14 +16,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import {
-	Globe,
-	Layers,
-	Plus,
-	Trash2,
-} from "lucide-react";
+import { Circle, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 
 export default function DashboardPage() {
 	const navigate = useNavigate();
@@ -33,12 +29,29 @@ export default function DashboardPage() {
 		id: number;
 		name: string;
 	} | null>(null);
+	const [versionToRename, setVersionToRename] = useState<{
+		id: number;
+		name: string;
+		nextName: string;
+		error: string;
+	} | null>(null);
+	const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">(
+		"idle",
+	);
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
 			navigate("/login");
 		}
 	}, [navigate, sessionQuery.data, sessionQuery.isSuccess]);
+
+	useEffect(() => {
+		if (copyStatus === "idle") return;
+		const timeoutId = window.setTimeout(() => {
+			setCopyStatus("idle");
+		}, 2000);
+		return () => window.clearTimeout(timeoutId);
+	}, [copyStatus]);
 
 	const portfolioQuery = useQuery({
 		queryKey: ["my-portfolio"],
@@ -80,6 +93,25 @@ export default function DashboardPage() {
 		},
 	});
 
+	const renameVersionMutation = useMutation({
+		mutationFn: async (input: { id: number; name: string }) =>
+			api.put(`/portfolios/me/versions/${input.id}`, { name: input.name }),
+		onSuccess: async () => {
+			setVersionToRename(null);
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+		},
+		onError: () => {
+			setVersionToRename((current) =>
+				current
+					? {
+							...current,
+							error: "Failed to rename version. Please try again.",
+						}
+					: current,
+			);
+		},
+	});
+
 	const publicLink = useMemo(() => {
 		const username =
 			portfolioQuery.data?.username ?? sessionQuery.data?.user?.username;
@@ -102,6 +134,18 @@ export default function DashboardPage() {
 	const handleDeleteConfirm = () => {
 		if (!versionToDelete) return;
 		deleteVersionMutation.mutate(versionToDelete.id);
+	};
+
+	const handleRenameConfirm = () => {
+		if (!versionToRename) return;
+		const name = versionToRename.nextName.trim();
+		if (!name) {
+			setVersionToRename((current) =>
+				current ? { ...current, error: "Version name is required." } : current,
+			);
+			return;
+		}
+		renameVersionMutation.mutate({ id: versionToRename.id, name });
 	};
 
 	return (
@@ -152,12 +196,17 @@ export default function DashboardPage() {
 									if (!publicLink) return;
 									try {
 										await navigator.clipboard.writeText(publicLink);
+										setCopyStatus("success");
 									} catch {
-										// no-op
+										setCopyStatus("error");
 									}
 								}}
 							>
-								Copy link
+								{copyStatus === "success"
+									? "Link copied"
+									: copyStatus === "error"
+										? "Copy failed"
+										: "Copy link"}
 							</Button>
 						</div>
 					</CardContent>
@@ -240,39 +289,57 @@ export default function DashboardPage() {
 									<span
 										className={cn(
 											buttonVariants({ variant: "secondary", size: "sm" }),
-											"pointer-events-none",
+											"pointer-events-none border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 										)}
 									>
+										<Circle className="size-2.5 fill-current text-emerald-500" />
 										Live
 									</span>
 								) : (
-									<>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={() => activateVersionMutation.mutate(version.id)}
-											disabled={activateVersionMutation.isPending}
-										>
-											Set live
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											onClick={() =>
-												setVersionToDelete({
-													id: version.id,
-													name: version.name,
-												})
-											}
-											disabled={deleteVersionMutation.isPending}
-										>
-											<Trash2 className="size-4" />
-											Delete
-										</Button>
-									</>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => activateVersionMutation.mutate(version.id)}
+										disabled={activateVersionMutation.isPending}
+									>
+										Set live
+									</Button>
 								)}
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										setVersionToRename({
+											id: version.id,
+											name: version.name,
+											nextName: version.name,
+											error: "",
+										})
+									}
+									disabled={renameVersionMutation.isPending}
+								>
+									<Pencil className="size-4" />
+									Rename
+								</Button>
+								{!version.isActive ? (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() =>
+											setVersionToDelete({
+												id: version.id,
+												name: version.name,
+											})
+										}
+										disabled={deleteVersionMutation.isPending}
+									>
+										<Trash2 className="size-4" />
+										Delete
+									</Button>
+								) : null}
 								<Link
 									to="/dashboard/edit"
 									className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -311,6 +378,57 @@ export default function DashboardPage() {
 							>
 								{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
 							</Button>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{versionToRename ? (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+					<Card className="w-full max-w-md border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Rename version</CardTitle>
+							<CardDescription>
+								Update the display name for "{versionToRename.name}".
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-3">
+							<Input
+								value={versionToRename.nextName}
+								onChange={(event) =>
+									setVersionToRename((current) =>
+										current
+											? {
+													...current,
+													nextName: event.target.value,
+													error: "",
+												}
+											: current,
+									)
+								}
+								maxLength={120}
+								placeholder="Version name"
+							/>
+							{versionToRename.error ? (
+								<div className="text-sm text-destructive">{versionToRename.error}</div>
+							) : null}
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setVersionToRename(null)}
+									disabled={renameVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									onClick={handleRenameConfirm}
+									disabled={renameVersionMutation.isPending}
+								>
+									{renameVersionMutation.isPending ? "Saving..." : "Save name"}
+								</Button>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
