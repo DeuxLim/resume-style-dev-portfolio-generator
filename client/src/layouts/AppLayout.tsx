@@ -1,4 +1,8 @@
 import { Outlet, Link, useLocation } from "react-router";
+import { useNavigate } from "react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/axios.client";
+import { sessionQueryKey } from "@/hooks/useSession";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ThemeToggleButton from "@/components/ThemeToggleButton";
@@ -6,8 +10,27 @@ import { useSession } from "@/hooks/useSession";
 
 export default function AppLayout() {
 	const location = useLocation();
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
 	const isAuthed = Boolean(sessionQuery.data?.user);
+	const username =
+		sessionQuery.data?.portfolioSlug ?? sessionQuery.data?.user?.username;
+	const publicPortfolioPath = username ? `/${username}` : "";
+	const logoutMutation = useMutation({
+		mutationFn: async () => api.post("/auth/logout"),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
+			navigate("/");
+		},
+	});
+
+	const isActivePath = (path: string) => {
+		if (path === "/") {
+			return location.pathname === "/";
+		}
+		return location.pathname === path || location.pathname.startsWith(`${path}/`);
+	};
 
 	return (
 		<div className="app-shell relative min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_right,#0ea5e91f,transparent_40%),radial-gradient(circle_at_top_left,#22c55e14,transparent_35%)] bg-cover bg-center">
@@ -26,36 +49,88 @@ export default function AppLayout() {
 							Resume-style Web Dev Portfolio Generator
 						</Link>
 						<div className="flex flex-wrap items-center gap-1.5">
-							<Link
-								to="/"
-								className={cn(
-									buttonVariants({ size: "sm", variant: "ghost" }),
-									location.pathname === "/" && "bg-muted text-foreground",
-								)}
-							>
-								Home
-							</Link>
-							<Link
-								to="/sample"
-								className={cn(
-									buttonVariants({ size: "sm", variant: "ghost" }),
-									location.pathname === "/sample" && "bg-muted text-foreground",
-								)}
-							>
-								Sample
-							</Link>
 							{isAuthed ? (
-								<Link
-									to="/dashboard"
-									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										location.pathname.startsWith("/dashboard") && "bg-muted text-foreground",
-									)}
-								>
-									Dashboard
-								</Link>
+								<>
+									<Link
+										to="/dashboard"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											isActivePath("/dashboard") && "bg-muted text-foreground",
+										)}
+									>
+										Dashboard
+									</Link>
+									<Link
+										to="/dashboard/edit"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											isActivePath("/dashboard/edit") && "bg-muted text-foreground",
+										)}
+									>
+										Edit portfolio
+									</Link>
+									<Link
+										to="/dashboard/resume"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											isActivePath("/dashboard/resume") && "bg-muted text-foreground",
+										)}
+									>
+										Resume builder
+									</Link>
+									<Link to="/dashboard/edit?newVersion=1" className={buttonVariants({ size: "sm" })}>
+										New version
+									</Link>
+									<Link
+										to="/sample"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											isActivePath("/sample") && "bg-muted text-foreground",
+										)}
+									>
+										Sample output
+									</Link>
+									{publicPortfolioPath ? (
+										<Link
+											to={publicPortfolioPath}
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												location.pathname === publicPortfolioPath &&
+													"bg-muted text-foreground",
+											)}
+										>
+											My portfolio
+										</Link>
+									) : null}
+									<button
+										type="button"
+										className={buttonVariants({ size: "sm", variant: "ghost" })}
+										onClick={() => logoutMutation.mutate()}
+										disabled={logoutMutation.isPending}
+									>
+										{logoutMutation.isPending ? "Logging out..." : "Log out"}
+									</button>
+								</>
 							) : (
 								<>
+									<Link
+										to="/"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											isActivePath("/") && "bg-muted text-foreground",
+										)}
+									>
+										Home
+									</Link>
+									<Link
+										to="/sample"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											isActivePath("/sample") && "bg-muted text-foreground",
+										)}
+									>
+										Sample output
+									</Link>
 									<Link
 										to="/login"
 										className={buttonVariants({ size: "sm", variant: "ghost" })}
@@ -63,7 +138,7 @@ export default function AppLayout() {
 										Log in
 									</Link>
 									<Link to="/signup" className={buttonVariants({ size: "sm" })}>
-										Get started
+										Create account
 									</Link>
 								</>
 							)}

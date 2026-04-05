@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/axios.client";
 import { sessionQueryKey, useSession } from "@/hooks/useSession";
@@ -19,7 +19,7 @@ import {
 } from "@/lib/tech";
 import type { EditablePortfolio } from "../../../shared/types/portfolio.types";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -94,8 +94,10 @@ const MAX_CUSTOM_SECTIONS = 8;
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const shouldCreateVersionOnSave = searchParams.get("newVersion") === "1";
 	const [portfolio, setPortfolio] = useState<EditablePortfolio | null>(null);
 	const [statusMessage, setStatusMessage] = useState("");
 	const [quickTechInput, setQuickTechInput] = useState<Record<string, string>>({});
@@ -287,14 +289,50 @@ export default function PortfolioEditorPage() {
 
 	const saveMutation = useMutation({
 		mutationFn: async () => {
-			const { data } = await api.put("/portfolios/me", { portfolio });
-			return data;
+			if (!portfolio) {
+				throw new Error("Portfolio data is not ready.");
+			}
+
+			const { data } = await api.put<{ portfolio: EditablePortfolio }>(
+				"/portfolios/me",
+				{ portfolio },
+			);
+
+			let createdVersion = false;
+			let versionCreateFailed = false;
+
+			if (shouldCreateVersionOnSave) {
+				try {
+					await api.post("/portfolios/me/versions", {});
+					createdVersion = true;
+				} catch {
+					versionCreateFailed = true;
+				}
+			}
+
+			return { portfolio: data.portfolio, createdVersion, versionCreateFailed };
 		},
-		onSuccess: async (data) => {
-			setStatusMessage("Saved. Your active portfolio is updated.");
-			setPortfolio(cloneEditablePortfolio(data.portfolio));
+		onSuccess: async (result) => {
+			if (result.versionCreateFailed) {
+				setStatusMessage(
+					"Saved active portfolio, but failed to create a new version. Save again to retry.",
+				);
+			} else if (result.createdVersion) {
+				setStatusMessage("Saved. New version created.");
+			} else {
+				setStatusMessage("Saved. Your active portfolio is updated.");
+			}
+
+			setPortfolio(cloneEditablePortfolio(result.portfolio));
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
+
+			if (result.createdVersion) {
+				await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+				const nextSearchParams = new URLSearchParams(searchParams);
+				nextSearchParams.delete("newVersion");
+				setSearchParams(nextSearchParams, { replace: true });
+			}
 		},
 	});
 
@@ -1123,17 +1161,6 @@ export default function PortfolioEditorPage() {
 						</CardDescription>
 					</div>
 					<div className="flex flex-wrap gap-2">
-						<Link to="/dashboard" className={buttonVariants({ variant: "outline" })}>
-							Back to manager
-						</Link>
-						<Link
-							to={`/${portfolio.username}`}
-							target="_blank"
-							rel="noreferrer noopener"
-							className={buttonVariants({ variant: "ghost" })}
-						>
-							Open preview
-						</Link>
 						<Button
 							type="button"
 							onClick={() => saveMutation.mutate()}

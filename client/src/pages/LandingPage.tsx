@@ -13,6 +13,7 @@ import {
 	CheckCircle2,
 	CopyCheck,
 	Eye,
+	FileText,
 	LayoutTemplate,
 	Rocket,
 } from "lucide-react";
@@ -34,7 +35,7 @@ const pillars = [
 	{
 		title: "Version Control for Content",
 		description:
-			"Keep multiple versions for different roles and choose which one stays live on your public URL.",
+			"Keep multiple versions for different roles and choose what stays live on your public URL and resume export.",
 		icon: CopyCheck,
 	},
 ];
@@ -50,13 +51,20 @@ export default function LandingPage() {
 						</h1>
 						<p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
 							Write once, publish once, and keep your link updated. The builder
-							uses a resume-style layout recruiters already know how to scan.
+							uses a resume-style layout recruiters already know how to scan, now
+							with a resume builder and PDF export workflow.
 						</p>
 					</div>
 
 					<div className="flex flex-wrap gap-4">
 						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
 							Create account
+						</Link>
+						<Link
+							to="/dashboard/resume"
+							className={buttonVariants({ size: "lg", variant: "secondary" })}
+						>
+							Open resume builder
 						</Link>
 						<Link
 							to="/sample"
@@ -122,6 +130,77 @@ export default function LandingPage() {
 						<PortfolioMiniPreview large />
 						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
 							your-domain.com/your-username
+						</div>
+					</CardContent>
+				</Card>
+			</section>
+
+			<section className="space-y-4">
+					<div className="space-y-2">
+						<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+							Resume builder with generated sample view
+						</h2>
+						<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
+							Build your resume in guided sections, review a generated sample
+							screenshot, and keep it aligned with your portfolio content.
+						</p>
+					</div>
+				<Card className="border-border/70 shadow-none">
+					<CardContent className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr]">
+						<div className="overflow-hidden rounded-xl border bg-background">
+							<div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+								<FileText className="size-3.5" />
+								generated-resume-sample.png
+							</div>
+							<div className="h-[26rem] w-full bg-muted/20 p-5 sm:h-[34rem] sm:p-7">
+								<div className="h-full w-full rounded-lg border bg-background p-5 shadow-sm sm:p-6">
+									<div className="space-y-1 border-b pb-4">
+										<div className="text-lg font-semibold">Morgan Reyes</div>
+										<div className="text-xs text-muted-foreground">
+											Full-Stack Developer • morgan@example.dev • manila, ph
+										</div>
+									</div>
+									<div className="space-y-4 pt-4 text-xs sm:text-sm">
+										<div className="space-y-1.5">
+											<div className="font-semibold tracking-wide">SUMMARY</div>
+											<div className="h-2.5 w-full rounded bg-muted/65" />
+											<div className="h-2.5 w-[92%] rounded bg-muted/55" />
+										</div>
+										<div className="space-y-1.5">
+											<div className="font-semibold tracking-wide">EXPERIENCE</div>
+											<div className="h-2.5 w-full rounded bg-muted/65" />
+											<div className="h-2.5 w-[88%] rounded bg-muted/55" />
+											<div className="h-2.5 w-[94%] rounded bg-muted/50" />
+										</div>
+										<div className="space-y-1.5">
+											<div className="font-semibold tracking-wide">PROJECTS</div>
+											<div className="h-2.5 w-full rounded bg-muted/65" />
+											<div className="h-2.5 w-[90%] rounded bg-muted/55" />
+										</div>
+										<div className="space-y-1.5">
+											<div className="font-semibold tracking-wide">SKILLS</div>
+											<div className="h-2.5 w-[75%] rounded bg-muted/60" />
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div className="space-y-4 text-sm text-muted-foreground sm:text-base">
+							<div className="rounded-lg border bg-background/90 px-4 py-3">
+								Generate ATS-ready PDF output directly from your resume builder.
+							</div>
+							<div className="rounded-lg border bg-background/90 px-4 py-3">
+								Reuse the same core content across your portfolio and resume.
+							</div>
+							<div className="rounded-lg border bg-background/90 px-4 py-3">
+								Update once, then publish and export from one workflow.
+							</div>
+							<Link
+								to="/dashboard/resume"
+								className={buttonVariants({ size: "lg" })}
+							>
+								Go to resume builder
+							</Link>
 						</div>
 					</CardContent>
 				</Card>

@@ -31,6 +31,14 @@ export default function PortfolioPage() {
 		return <div className="app-card p-6">Loading portfolio...</div>;
 	}
 
+	if (portfolioQuery.isError && !fallbackPortfolio) {
+		return (
+			<div className="app-card p-6">
+				Unable to load portfolio right now. Please refresh and try again.
+			</div>
+		);
+	}
+
 	if (!resolvedPortfolio) {
 		return <div className="app-card p-6">Portfolio not found.</div>;
 	}

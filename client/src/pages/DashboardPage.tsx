@@ -1,11 +1,11 @@
 import { api } from "@/lib/axios.client";
-import { sessionQueryKey, useSession } from "@/hooks/useSession";
+import { useSession } from "@/hooks/useSession";
 import type {
 	EditablePortfolio,
 	PortfolioVersionSummary,
 } from "../../../shared/types/portfolio.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -19,22 +19,16 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
-	FileText,
 	Globe,
 	Layers,
-	PencilLine,
 	Plus,
 	Trash2,
-	TrendingUp,
 } from "lucide-react";
 
 export default function DashboardPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
-	const [pendingDeleteVersionId, setPendingDeleteVersionId] = useState<number | null>(
-		null,
-	);
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -64,14 +58,6 @@ export default function DashboardPage() {
 		enabled: Boolean(sessionQuery.data?.user),
 	});
 
-	const createVersionMutation = useMutation({
-		mutationFn: async () => api.post("/portfolios/me/versions", {}),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
-			navigate("/dashboard/edit");
-		},
-	});
-
 	const activateVersionMutation = useMutation({
 		mutationFn: async (versionId: number) =>
 			api.put(`/portfolios/me/versions/${versionId}/activate`),
@@ -85,16 +71,7 @@ export default function DashboardPage() {
 		mutationFn: async (versionId: number) =>
 			api.delete(`/portfolios/me/versions/${versionId}`),
 		onSuccess: async () => {
-			setPendingDeleteVersionId(null);
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
-		},
-	});
-
-	const logoutMutation = useMutation({
-		mutationFn: async () => api.post("/auth/logout"),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
-			navigate("/");
 		},
 	});
 
@@ -117,54 +94,6 @@ export default function DashboardPage() {
 
 	return (
 		<main className="space-y-5">
-			<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-emerald-500/7 to-transparent shadow-none">
-				<CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
-					<div className="space-y-2">
-						<Badge variant="secondary" className="w-fit">
-							<TrendingUp className="mr-1 size-3.5" />
-							Dashboard
-						</Badge>
-						<CardTitle className="text-2xl sm:text-3xl">
-							{portfolioQuery.data?.fullName || "Portfolio Dashboard"}
-						</CardTitle>
-						<CardDescription>
-							Manage your portfolio versions from draft to live.
-						</CardDescription>
-					</div>
-					<div className="flex flex-wrap gap-2">
-						<Link
-							to="/dashboard/edit"
-							className={buttonVariants({ variant: "outline" })}
-						>
-							<PencilLine className="size-4" />
-							Edit active
-						</Link>
-						<Link
-							to="/dashboard/resume"
-							className={buttonVariants({ variant: "outline" })}
-						>
-							<FileText className="size-4" />
-							Resume builder
-						</Link>
-						<Button
-							type="button"
-							onClick={() => createVersionMutation.mutate()}
-							disabled={createVersionMutation.isPending}
-						>
-							<Plus className="size-4" />
-							{createVersionMutation.isPending ? "Creating..." : "New version"}
-						</Button>
-						<Button
-							type="button"
-							variant="ghost"
-							onClick={() => logoutMutation.mutate()}
-						>
-							Log out
-						</Button>
-					</div>
-				</CardHeader>
-			</Card>
-
 			<section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_.8fr]">
 				<Card className="border-border/70 shadow-none">
 					<CardHeader>
@@ -251,10 +180,20 @@ export default function DashboardPage() {
 								Promote any version to live without changing your URL.
 							</CardDescription>
 						</div>
-						<Badge variant="outline">
-							<Layers className="mr-1 size-3.5" />
-							{versionsQuery.data?.length ?? 0} total
-						</Badge>
+						<div className="flex items-center gap-2">
+							<Badge variant="outline">
+								<Layers className="mr-1 size-3.5" />
+								{versionsQuery.data?.length ?? 0} total
+							</Badge>
+							<Button
+								type="button"
+								size="sm"
+								onClick={() => navigate("/dashboard/edit?newVersion=1")}
+							>
+								<Plus className="size-4" />
+								New version
+							</Button>
+						</div>
 					</div>
 				</CardHeader>
 				<CardContent className="space-y-3">
@@ -298,39 +237,22 @@ export default function DashboardPage() {
 										>
 											Set live
 										</Button>
-										{pendingDeleteVersionId === version.id ? (
-											<>
-												<Button
-													type="button"
-													variant="destructive"
-													size="sm"
-													onClick={() => deleteVersionMutation.mutate(version.id)}
-													disabled={deleteVersionMutation.isPending}
-												>
-													Confirm delete
-												</Button>
-												<Button
-													type="button"
-													variant="ghost"
-													size="sm"
-													onClick={() => setPendingDeleteVersionId(null)}
-													disabled={deleteVersionMutation.isPending}
-												>
-													Cancel
-												</Button>
-											</>
-										) : (
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onClick={() => setPendingDeleteVersionId(version.id)}
-												disabled={deleteVersionMutation.isPending}
-											>
-												<Trash2 className="size-4" />
-												Delete
-											</Button>
-										)}
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => {
+												const shouldDelete = window.confirm(
+													`Delete "${version.name}"? This cannot be undone.`,
+												);
+												if (!shouldDelete) return;
+												deleteVersionMutation.mutate(version.id);
+											}}
+											disabled={deleteVersionMutation.isPending}
+										>
+											<Trash2 className="size-4" />
+											Delete
+										</Button>
 									</>
 								)}
 								<Link
