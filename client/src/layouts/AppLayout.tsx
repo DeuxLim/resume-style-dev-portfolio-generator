@@ -48,6 +48,7 @@ export default function AppLayout() {
 	const isResumeBuilderActive = location.pathname.startsWith("/dashboard/resume");
 	const isHomeActive = location.pathname === "/";
 	const isSampleActive = location.pathname.startsWith("/sample");
+	const isGuideActive = location.pathname.startsWith("/guide");
 
 	useEffect(() => {
 		const onPointerDown = (event: PointerEvent) => {
@@ -119,6 +120,16 @@ export default function AppLayout() {
 									onClick={() => setOpenMenu(null)}
 								>
 									Dashboard
+								</Link>
+								<Link
+									to="/guide"
+									className={cn(
+										buttonVariants({ size: "sm", variant: "ghost" }),
+										isGuideActive && navActiveClass,
+									)}
+									onClick={() => setOpenMenu(null)}
+								>
+									User guide
 								</Link>
 
 								<div className="group relative">
@@ -298,6 +309,15 @@ export default function AppLayout() {
 								>
 									Sample output
 								</Link>
+								<Link
+									to="/guide"
+									className={cn(
+										buttonVariants({ size: "sm", variant: "ghost" }),
+										isGuideActive && navActiveClass,
+									)}
+								>
+									User guide
+								</Link>
 								<Link to="/login" className={buttonVariants({ size: "sm", variant: "ghost" })}>
 									Log in
 								</Link>
@@ -322,6 +342,17 @@ export default function AppLayout() {
 										onClick={() => setMobileNavOpen(false)}
 									>
 										Dashboard
+									</Link>
+									<Link
+										to="/guide"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											"w-full justify-start",
+											isGuideActive && navActiveClass,
+										)}
+										onClick={() => setMobileNavOpen(false)}
+									>
+										User guide
 									</Link>
 									<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
 										Portfolio
@@ -433,6 +464,17 @@ export default function AppLayout() {
 										onClick={() => setMobileNavOpen(false)}
 									>
 										Sample output
+									</Link>
+									<Link
+										to="/guide"
+										className={cn(
+											buttonVariants({ size: "sm", variant: "ghost" }),
+											"w-full justify-start",
+											isGuideActive && navActiveClass,
+										)}
+										onClick={() => setMobileNavOpen(false)}
+									>
+										User guide
 									</Link>
 									<Link
 										to="/login"
