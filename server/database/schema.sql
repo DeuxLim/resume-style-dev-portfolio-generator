@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS portfolios (
 	github_url VARCHAR(255) NOT NULL DEFAULT '',
 	github_username VARCHAR(100) NOT NULL DEFAULT '',
 	linkedin_url VARCHAR(255) NOT NULL DEFAULT '',
+	header_actions_json JSON NULL,
 	about_json JSON NOT NULL,
 	timeline_json JSON NOT NULL,
 	experiences_json JSON NOT NULL,

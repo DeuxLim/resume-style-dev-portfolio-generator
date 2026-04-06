@@ -231,6 +231,99 @@
 		max-width: 100%;
 	}
 
+	.markdown-render h1,
+	.markdown-render h2,
+	.markdown-render h3,
+	.markdown-render h4 {
+		line-height: 1.25;
+		margin: 0.6rem 0 0.45rem;
+		font-weight: 700;
+	}
+
+	.markdown-render h1 {
+		font-size: 1.35rem;
+	}
+
+	.markdown-render h2 {
+		font-size: 1.2rem;
+	}
+
+	.markdown-render h3 {
+		font-size: 1.08rem;
+	}
+
+	.markdown-render h4 {
+		font-size: 1rem;
+	}
+
+	.markdown-render p {
+		margin: 0.35rem 0;
+	}
+
+	.markdown-render ul {
+		list-style: disc;
+		padding-left: 1.25rem;
+		margin: 0.45rem 0;
+	}
+
+	.markdown-render ol {
+		list-style: decimal;
+		padding-left: 1.25rem;
+		margin: 0.45rem 0;
+	}
+
+	.markdown-render li {
+		margin: 0.2rem 0;
+	}
+
+	.markdown-render blockquote {
+		border-left: 3px solid var(--app-border);
+		padding-left: 0.8rem;
+		color: var(--app-muted);
+		margin: 0.55rem 0;
+	}
+
+	.markdown-render a {
+		color: var(--app-accent);
+		text-decoration: underline;
+	}
+
+	.markdown-render code {
+		background: color-mix(in oklab, var(--app-surface-2) 92%, transparent);
+		padding: 0.05rem 0.28rem;
+		border-radius: 4px;
+		font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+			Consolas, "Liberation Mono", "Courier New", monospace;
+		font-size: 0.92em;
+	}
+
+	.markdown-render pre {
+		background: color-mix(in oklab, var(--app-surface-2) 92%, transparent);
+		padding: 0.7rem 0.8rem;
+		border-radius: 8px;
+		overflow-x: auto;
+		margin: 0.6rem 0;
+	}
+
+	.markdown-render pre code {
+		background: transparent;
+		padding: 0;
+		border-radius: 0;
+	}
+
+	.markdown-render img {
+		max-width: 100%;
+		height: auto;
+		border-radius: 6px;
+		margin: 0.45rem 0;
+	}
+
+	.markdown-render hr {
+		border: 0;
+		border-top: 1px solid var(--app-border);
+		margin: 0.8rem 0;
+	}
+
 	.layout-scroll-content {
 		overscroll-behavior: contain;
 	}

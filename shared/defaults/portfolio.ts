@@ -1,6 +1,7 @@
 import type {
 	EditablePortfolio,
 	ExperienceItem,
+	HeaderAction,
 	PortfolioLayout,
 	PortfolioRecord,
 	ProjectItem,
@@ -39,6 +40,50 @@ const categories = (items: Omit<TechCategory, "id">[]): TechCategory[] =>
 		...item,
 		id: makeId(item.name),
 	}));
+
+const headerActionId = (value: string) =>
+	makeId(value) || `action-${Math.random().toString(16).slice(2, 8)}`;
+
+export const buildDefaultHeaderActions = ({
+	githubUrl,
+	linkedinUrl,
+	email,
+	phone,
+}: {
+	githubUrl: string;
+	linkedinUrl: string;
+	email: string;
+	phone: string;
+}): HeaderAction[] => [
+	{
+		id: headerActionId("github"),
+		label: "Github",
+		type: "github",
+		value: githubUrl,
+		display: "label",
+	},
+	{
+		id: headerActionId("linkedin"),
+		label: "LinkedIn",
+		type: "linkedin",
+		value: linkedinUrl,
+		display: "label",
+	},
+	{
+		id: headerActionId("email"),
+		label: "Email",
+		type: "email",
+		value: email,
+		display: "value",
+	},
+	{
+		id: headerActionId("phone"),
+		label: "Phone",
+		type: "phone",
+		value: phone,
+		display: "value",
+	},
+];
 
 export const defaultPortfolioLayout: PortfolioLayout = {
 	sectionOrder: [
@@ -89,6 +134,12 @@ export const buildStarterPortfolio = (
 	githubUrl: "",
 	githubUsername: "",
 	linkedinUrl: "",
+	headerActions: buildDefaultHeaderActions({
+		githubUrl: "",
+		linkedinUrl: "",
+		email,
+		phone: "",
+	}),
 	about: [
 		"Write a short introduction about what you build and the kind of problems you like working on.",
 		"Keep it simple and practical so visitors understand your strengths quickly.",
@@ -159,6 +210,12 @@ export const samplePortfolio: PortfolioRecord = {
 	githubUrl: "https://github.com/DeuxLim",
 	githubUsername: "deuxlim",
 	linkedinUrl: "https://www.linkedin.com/in/deux-lim-522050263/",
+	headerActions: buildDefaultHeaderActions({
+		githubUrl: "https://github.com/DeuxLim",
+		linkedinUrl: "https://www.linkedin.com/in/deux-lim-522050263/",
+		email: "limdeux27@gmail.com",
+		phone: "+63 945-428-6156",
+	}),
 	about: [
 		"I'm a full-stack web developer focused on practical systems, maintainable code, and shipping features that solve real problems.",
 		"I work across React, TypeScript, Laravel, Express, MySQL, integrations, and AI features without making the stack more complicated than it needs to be.",

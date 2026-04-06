@@ -8,6 +8,7 @@ import {
 } from "../../shared/defaults/portfolio.js";
 import type {
 	EditablePortfolio,
+	HeaderAction,
 	PortfolioVersionBase,
 	PortfolioSectionKey,
 	PortfolioSectionSpan,
@@ -36,6 +37,19 @@ import {
 
 const normalizeArray = (value: unknown) =>
 	Array.isArray(value) ? value : [];
+
+const normalizeHeaderActionType = (
+	value: unknown,
+): HeaderAction["type"] => {
+	const input = String(value ?? "link");
+	return input === "github" ||
+		input === "linkedin" ||
+		input === "email" ||
+		input === "phone" ||
+		input === "link"
+		? input
+		: "link";
+};
 
 const validSectionOrder = new Set<PortfolioSectionKey>(
 	defaultPortfolioLayout.sectionOrder,
@@ -98,11 +112,26 @@ const normalizeSectionHeights = (
 const sanitizeEditablePortfolio = (
 	value: unknown,
 	username: string,
-	email: string,
+	accountEmail: string,
 	fullName: string,
 ): EditablePortfolio => {
-	const fallback = buildStarterPortfolio(username, email, fullName);
+	const fallback = buildStarterPortfolio(username, accountEmail, fullName);
 	const input = (value ?? {}) as Partial<EditablePortfolio>;
+	const nextEmail = String(input.email ?? fallback.email);
+	const rawHeaderActions = normalizeArray(input.headerActions);
+	const sanitizedHeaderActions = rawHeaderActions
+		.map((entry) => {
+			const item = entry as Partial<HeaderAction>;
+			const type = normalizeHeaderActionType(item.type);
+			return {
+				id: String(item.id ?? randomUUID()),
+				label: String(item.label ?? ""),
+				type,
+				value: String(item.value ?? ""),
+				display: String(item.display ?? "label") === "value" ? "value" : "label",
+			} satisfies HeaderAction;
+		})
+		.slice(0, 4);
 
 	return {
 		username,
@@ -114,13 +143,14 @@ const sanitizeEditablePortfolio = (
 		),
 		education: String(input.education ?? fallback.education),
 		availability: String(input.availability ?? fallback.availability),
-		email,
+		email: nextEmail,
 		phone: String(input.phone ?? fallback.phone),
 		avatarUrl: String(input.avatarUrl ?? fallback.avatarUrl),
 		coverUrl: String(input.coverUrl ?? fallback.coverUrl),
 		githubUrl: String(input.githubUrl ?? fallback.githubUrl),
 		githubUsername: String(input.githubUsername ?? fallback.githubUsername),
 		linkedinUrl: String(input.linkedinUrl ?? fallback.linkedinUrl),
+		headerActions: sanitizedHeaderActions,
 		about: normalizeArray(input.about)
 			.map((item) => String(item).trim())
 			.filter(Boolean),
@@ -382,9 +412,26 @@ const createMyPortfolioVersion = async (req: Request, res: Response) => {
 		baseInput === "blank" || baseInput === "live" || baseInput === "latest"
 			? (baseInput as PortfolioVersionBase)
 			: "latest";
+
+	let sanitizedPortfolio: EditablePortfolio | undefined;
+	if (req.body?.portfolio !== undefined) {
+		const current = await getEditablePortfolioByUserId(req.auth!.userId);
+		if (!current) {
+			res.status(404).json({ message: "Portfolio not found." });
+			return;
+		}
+		sanitizedPortfolio = sanitizeEditablePortfolio(
+			req.body.portfolio,
+			current.username,
+			req.auth!.email,
+			req.auth!.fullName,
+		);
+	}
+
 	const version = await createPortfolioVersionByUserId(req.auth!.userId, {
 		name,
 		base,
+		...(sanitizedPortfolio ? { portfolio: sanitizedPortfolio } : {}),
 	});
 	if (version === "duplicate_snapshot") {
 		res.status(409).json({

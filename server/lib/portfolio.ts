@@ -3,6 +3,7 @@ import type {
 	CustomSection,
 	EditablePortfolio,
 	ExperienceItem,
+	HeaderAction,
 	PortfolioLayout,
 	PortfolioRecord,
 	ProjectItem,
@@ -25,6 +26,7 @@ type PortfolioRow = {
 	github_url: string;
 	github_username: string;
 	linkedin_url: string;
+	header_actions_json: string | null;
 	about_json: string | null;
 	timeline_json: string | null;
 	experiences_json: string | null;
@@ -87,6 +89,33 @@ const normalizeCustomSections = (sections: CustomSection[]): CustomSection[] =>
 		};
 	});
 
+const normalizeHeaderActions = (actions: HeaderAction[]): HeaderAction[] => {
+	const source = Array.isArray(actions) ? actions : [];
+	return source
+		.map((action, index) => {
+			const type = String(action.type ?? "link");
+			const safeType =
+				type === "github" ||
+				type === "linkedin" ||
+				type === "email" ||
+				type === "phone" ||
+				type === "link"
+					? type
+					: "link";
+			return {
+				id: String(action.id ?? `action-${index + 1}`),
+				label: String(action.label ?? ""),
+				type: safeType,
+				value: String(action.value ?? ""),
+				display:
+					String((action as { display?: unknown }).display ?? "label") === "value"
+						? "value"
+						: "label",
+			} as HeaderAction;
+		})
+		.slice(0, 4);
+};
+
 const normalizeLayout = (
 	value: unknown,
 	fallback: PortfolioLayout,
@@ -144,6 +173,7 @@ export const serializePortfolio = (portfolio: EditablePortfolio) => ({
 	githubUrl: portfolio.githubUrl.trim(),
 	githubUsername: portfolio.githubUsername.trim(),
 	linkedinUrl: portfolio.linkedinUrl.trim(),
+	headerActionsJson: JSON.stringify(portfolio.headerActions),
 	aboutJson: JSON.stringify(
 		portfolio.about.map((paragraph) => paragraph.trim()).filter(Boolean),
 	),
@@ -177,6 +207,7 @@ export const mapPortfolioRow = (
 		githubUrl: row.github_url,
 		githubUsername: row.github_username,
 		linkedinUrl: row.linkedin_url,
+		headerActions: parseJson<HeaderAction[]>(row.header_actions_json, []),
 		about: parseJson<string[]>(row.about_json, fallback.about),
 		timeline: parseJson<TimelineItem[]>(row.timeline_json, fallback.timeline),
 		experiences: parseJson<ExperienceItem[]>(
@@ -207,6 +238,9 @@ export const mapPortfolioRow = (
 	}
 
 	portfolio.customSections = normalizeCustomSections(portfolio.customSections);
+	portfolio.headerActions = normalizeHeaderActions(
+		portfolio.headerActions,
+	);
 
 	return portfolio;
 };
@@ -228,6 +262,7 @@ export const toPublicPortfolio = (
 	githubUrl: portfolio.githubUrl,
 	githubUsername: portfolio.githubUsername,
 	linkedinUrl: portfolio.linkedinUrl,
+	headerActions: portfolio.headerActions,
 	about: portfolio.about,
 	timeline: portfolio.timeline,
 	experiences: portfolio.experiences,

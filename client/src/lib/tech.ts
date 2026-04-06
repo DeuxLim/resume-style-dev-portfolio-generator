@@ -200,6 +200,14 @@ type ResolvedTechIcon = {
 	group: TechGroup;
 };
 
+export type TechCategoryPresetKey = Exclude<TechGroup, "others">;
+
+export type TechCategoryPreset = {
+	key: TechCategoryPresetKey;
+	label: string;
+	items: string[];
+};
+
 const techLookup = new Map<string, ResolvedTechIcon>();
 const allLabels: string[] = [];
 
@@ -249,6 +257,78 @@ const labelsByGroup = techIconEntries.reduce<Record<TechGroup, string[]>>(
 		others: [],
 	},
 );
+
+const TECH_CATEGORY_PRESETS: TechCategoryPreset[] = [
+	{
+		key: "frontend",
+		label: "Frontend",
+		items: labelsByGroup.frontend,
+	},
+	{
+		key: "backend",
+		label: "Backend",
+		items: labelsByGroup.backend,
+	},
+	{
+		key: "database",
+		label: "Database",
+		items: labelsByGroup.database,
+	},
+	{
+		key: "devops",
+		label: "DevOps",
+		items: labelsByGroup.devops,
+	},
+	{
+		key: "cloud",
+		label: "Cloud",
+		items: labelsByGroup.cloud,
+	},
+	{
+		key: "ai",
+		label: "AI / ML",
+		items: labelsByGroup.ai,
+	},
+	{
+		key: "mobile",
+		label: "Mobile",
+		items: labelsByGroup.mobile,
+	},
+	{
+		key: "testing",
+		label: "Testing",
+		items: labelsByGroup.testing,
+	},
+	{
+		key: "tooling",
+		label: "Tooling",
+		items: labelsByGroup.tooling,
+	},
+];
+
+const presetByKey = new Map<TechCategoryPresetKey, TechCategoryPreset>(
+	TECH_CATEGORY_PRESETS.map((preset) => [preset.key, preset]),
+);
+
+const presetNameLookup = new Map<string, TechCategoryPresetKey>();
+for (const preset of TECH_CATEGORY_PRESETS) {
+	presetNameLookup.set(normalizeTechName(preset.key), preset.key);
+	presetNameLookup.set(normalizeTechName(preset.label), preset.key);
+}
+
+export const getTechCategoryPresets = () => TECH_CATEGORY_PRESETS;
+
+export const getTechCategoryPresetByKey = (
+	key: TechCategoryPresetKey,
+): TechCategoryPreset | undefined => presetByKey.get(key);
+
+export const findTechCategoryPresetKeyByName = (
+	categoryName: string,
+): TechCategoryPresetKey | null => {
+	const normalized = normalizeTechName(categoryName);
+	if (!normalized) return null;
+	return presetNameLookup.get(normalized) ?? null;
+};
 
 export const getSuggestedTechForCategory = (
 	categoryName: string,

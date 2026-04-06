@@ -36,6 +36,21 @@ export type CustomSection = {
 	links: { id: string; label: string; url: string }[];
 };
 
+export type HeaderActionType =
+	| "github"
+	| "linkedin"
+	| "email"
+	| "phone"
+	| "link";
+
+export type HeaderAction = {
+	id: string;
+	label: string;
+	type: HeaderActionType;
+	value: string;
+	display: "label" | "value";
+};
+
 export type PortfolioSectionKey =
 	| "about"
 	| "timeline"
@@ -68,6 +83,7 @@ export type PortfolioRecord = {
 	githubUrl: string;
 	githubUsername: string;
 	linkedinUrl: string;
+	headerActions: HeaderAction[];
 	about: string[];
 	timeline: TimelineItem[];
 	experiences: ExperienceItem[];

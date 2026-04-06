@@ -7,6 +7,7 @@ import TechStack from "@/components/Home/TechStack";
 import Experience from "./Experience";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
+import { getVisibleSectionOrder } from "@/lib/portfolioLayout";
 import type { ReactNode } from "react";
 import type { PublicPortfolio } from "../../../../shared/types/portfolio.types";
 import { defaultPortfolioLayout } from "../../../../shared/defaults/portfolio";
@@ -26,9 +27,7 @@ export default function Content({
 }) {
 	const prefersReducedMotion = usePrefersReducedMotion();
 	const data = portfolio;
-	const sectionOrder = data?.layout?.sectionOrder?.length
-		? data.layout.sectionOrder
-		: defaultPortfolioLayout.sectionOrder;
+	const sectionOrder = getVisibleSectionOrder(data);
 
 	const sectionSpanByKey = {
 		...defaultPortfolioLayout.sectionSpans,
@@ -96,9 +95,7 @@ export default function Content({
 
 	return (
 		<div className="grid grid-cols-4 md:grid-cols-12 gap-3 sm:gap-4">
-			{sectionOrder
-				.filter((key, index, arr) => arr.indexOf(key) === index)
-				.map((sectionKey, index) => (
+			{sectionOrder.map((sectionKey, index) => (
 				<motion.div
 					key={sectionKey}
 					layout

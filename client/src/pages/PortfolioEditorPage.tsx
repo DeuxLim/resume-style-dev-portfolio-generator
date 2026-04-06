@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "@/lib/axios.client";
 import type { AxiosError } from "axios";
 import { sessionQueryKey, useSession } from "@/hooks/useSession";
@@ -8,11 +10,15 @@ import {
 	cloneEditablePortfolio,
 	createCustomSection,
 	createExperienceItem,
+	createHeaderAction,
 	createProjectItem,
 	createTechCategory,
 	createTimelineItem,
 } from "@/lib/portfolio";
 import {
+	findTechCategoryPresetKeyByName,
+	getTechCategoryPresetByKey,
+	getTechCategoryPresets,
 	getSuggestedTechForCategory,
 	getTechIcon,
 	normalizeTechName,
@@ -20,10 +26,13 @@ import {
 } from "@/lib/tech";
 import type {
 	EditablePortfolio,
+	HeaderAction,
+	HeaderActionType,
 	PortfolioVersionBase,
 	PortfolioVersionDetail,
 	PortfolioVersionSummary,
 } from "../../../shared/types/portfolio.types";
+import type { TechCategoryPresetKey } from "@/lib/tech";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,6 +64,10 @@ import GridLayout, {
 	type LayoutItem as GridLayoutItem,
 } from "react-grid-layout";
 import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
+import {
+	getVisibleHiddenSections,
+	getVisibleSectionOrder,
+} from "@/lib/portfolioLayout";
 import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 import type {
 	CustomSection,
@@ -108,6 +121,32 @@ const GRID_ALLOWED_SPANS: PortfolioSectionSpan[] = [4, 6, 8, 12];
 const GRID_MIN_HEIGHT = 4;
 const GRID_MAX_HEIGHT = 48;
 const MAX_CUSTOM_SECTIONS = 8;
+const MAX_HEADER_ACTIONS = 4;
+type CreateModalKind =
+	| "header-action"
+	| "timeline"
+	| "experience"
+	| "tech-category"
+	| "project"
+	| "custom-section"
+	| "custom-bullet"
+	| "custom-link"
+	| "tech-item";
+
+type CreateModalState = {
+	kind: CreateModalKind;
+	title: string;
+	description: string;
+	sectionId?: string;
+	customSectionType?: CustomSection["type"];
+};
+
+const HEADER_ACTION_LABELS: Record<Exclude<HeaderActionType, "link">, string> = {
+	github: "Github",
+	linkedin: "LinkedIn",
+	email: "Email",
+	phone: "Phone",
+};
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
@@ -137,6 +176,7 @@ export default function PortfolioEditorPage() {
 		null,
 	);
 	const [isCustomSectionEditorOpen, setIsCustomSectionEditorOpen] = useState(false);
+	const [isHeaderActionsEditorOpen, setIsHeaderActionsEditorOpen] = useState(false);
 	const [layoutWidth, setLayoutWidth] = useState(0);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
@@ -145,6 +185,22 @@ export default function PortfolioEditorPage() {
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
+	const [aboutMarkdownValue, setAboutMarkdownValue] = useState("");
+	const [aboutMarkdownView, setAboutMarkdownView] = useState<"write" | "preview">(
+		"write",
+	);
+	const [avatarInputMode, setAvatarInputMode] = useState<"upload" | "link">(
+		"upload",
+	);
+	const [coverInputMode, setCoverInputMode] = useState<"upload" | "link">(
+		"upload",
+	);
+	const [createModal, setCreateModal] = useState<CreateModalState | null>(null);
+	const [createForm, setCreateForm] = useState<Record<string, string>>({});
+	const [categoryPresetOverrides, setCategoryPresetOverrides] = useState<
+		Record<string, TechCategoryPresetKey | "custom">
+	>({});
+	const techCategoryPresets = useMemo(() => getTechCategoryPresets(), []);
 	const layoutContainerRef = useRef<HTMLDivElement | null>(null);
 	const sectionContentRefs = useRef<
 		Partial<Record<PortfolioSectionKey, HTMLDivElement | null>>
@@ -152,7 +208,7 @@ export default function PortfolioEditorPage() {
 		{},
 	);
 	const experienceItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
-	const hasAutoFittedDefaultLayout = useRef(false);
+	const hasAutoFitOnLayoutOpen = useRef(false);
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -216,6 +272,27 @@ export default function PortfolioEditorPage() {
 		if (!versionDetailQuery.data?.version?.name) return;
 		setRenameValue(versionDetailQuery.data.version.name);
 	}, [versionDetailQuery.data?.version?.name]);
+
+	useEffect(() => {
+		if (!portfolio) return;
+		setAboutMarkdownValue(portfolio.about.join("\n\n"));
+	}, [portfolio]);
+
+	useEffect(() => {
+		if (!portfolio) return;
+		const avatar = String(portfolio.avatarUrl ?? "").trim();
+		const cover = String(portfolio.coverUrl ?? "").trim();
+		const avatarIsLink =
+			Boolean(avatar) &&
+			avatar !== "/default-avatar.svg" &&
+			!avatar.includes("/uploads/avatars/");
+		const coverIsLink =
+			Boolean(cover) &&
+			cover !== "/default-cover.svg" &&
+			!cover.includes("/uploads/covers/");
+		setAvatarInputMode(avatarIsLink ? "link" : "upload");
+		setCoverInputMode(coverIsLink ? "link" : "upload");
+	}, [portfolio]);
 
 	useEffect(() => {
 		if (hasSelectedVersionId) {
@@ -352,24 +429,6 @@ export default function PortfolioEditorPage() {
 		});
 	};
 
-	const isDefaultLayoutConfig = (source: EditablePortfolio) => {
-		const currentOrder = getLayoutOrder(source);
-		const defaultOrder = defaultPortfolioLayout.sectionOrder;
-		if (currentOrder.length !== defaultOrder.length) return false;
-		for (let i = 0; i < defaultOrder.length; i += 1) {
-			if (currentOrder[i] !== defaultOrder[i]) return false;
-		}
-		for (const section of defaultOrder) {
-			if (getSectionSpan(source, section) !== defaultPortfolioLayout.sectionSpans[section]) {
-				return false;
-			}
-			if (getSectionHeight(source, section) !== defaultPortfolioLayout.sectionHeights[section]) {
-				return false;
-			}
-		}
-		return true;
-	};
-
 	useEffect(() => {
 		if (!pendingAutoFit || activeTab !== "layout") return;
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -388,10 +447,13 @@ export default function PortfolioEditorPage() {
 	}, [activeTab, pendingAutoFit]);
 
 	useEffect(() => {
-		if (activeTab !== "layout" || !portfolio) return;
-		if (hasAutoFittedDefaultLayout.current) return;
-		if (!isDefaultLayoutConfig(portfolio)) return;
-		hasAutoFittedDefaultLayout.current = true;
+		if (activeTab !== "layout") {
+			hasAutoFitOnLayoutOpen.current = false;
+			return;
+		}
+		if (!portfolio) return;
+		if (hasAutoFitOnLayoutOpen.current) return;
+		hasAutoFitOnLayoutOpen.current = true;
 		setPendingAutoFit(true);
 	}, [activeTab, portfolio]);
 
@@ -407,12 +469,11 @@ export default function PortfolioEditorPage() {
 				}
 				const created = await api.post<{ version: PortfolioVersionSummary }>(
 					"/portfolios/me/versions",
-					{ name: draftName, base: draftBase },
+					{ name: draftName, base: draftBase, portfolio },
 				);
 				const createdVersionId = created.data.version.id;
-				const { data } = await api.put<PortfolioVersionDetail>(
-					`/portfolios/me/versions/${createdVersionId}/snapshot`,
-					{ portfolio },
+				const { data } = await api.get<PortfolioVersionDetail>(
+					`/portfolios/me/versions/${createdVersionId}`,
 				);
 				return {
 					portfolio: data.portfolio,
@@ -511,6 +572,24 @@ export default function PortfolioEditorPage() {
 		},
 	});
 
+	const activateVersionMutation = useMutation({
+		mutationFn: async (versionId: number) =>
+			api.put(`/portfolios/me/versions/${versionId}/activate`),
+		onSuccess: async () => {
+			setToast({ type: "success", message: "Version is now live." });
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-portfolio-version", selectedVersionId],
+				});
+			}
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to set this version live." });
+		},
+	});
+
 	const deleteVersionMutation = useMutation({
 		mutationFn: async () => {
 			const versionId = hasSelectedVersionId
@@ -603,6 +682,7 @@ export default function PortfolioEditorPage() {
 			| "experienceSummary"
 			| "education"
 			| "availability"
+			| "email"
 			| "phone"
 			| "avatarUrl"
 			| "coverUrl"
@@ -613,6 +693,158 @@ export default function PortfolioEditorPage() {
 	) => {
 		setPortfolio((current) => (current ? { ...current, [key]: value } : current));
 	};
+
+	const setHeaderActionField = (
+		actionId: string,
+		key: keyof Pick<HeaderAction, "label" | "type" | "value" | "display">,
+		value: string,
+	) => {
+		setPortfolio((current) => {
+			if (!current) return current;
+			return {
+				...current,
+				headerActions: current.headerActions.map((action) =>
+					action.id === actionId
+						? {
+								...action,
+								[key]:
+									key === "type"
+										? (value as HeaderActionType)
+										: key === "display"
+											? value === "value"
+												? "value"
+												: "label"
+											: value,
+							}
+						: action,
+				),
+			};
+		});
+	};
+
+	const setHeaderActionType = (actionId: string, type: HeaderActionType) => {
+		setPortfolio((current) => {
+			if (!current) return current;
+			return {
+				...current,
+				headerActions: current.headerActions.map((action) => {
+					if (action.id !== actionId) return action;
+					const nextLabel =
+						type === "link"
+							? action.label
+							: HEADER_ACTION_LABELS[type as Exclude<HeaderActionType, "link">];
+					return {
+						...action,
+						type,
+						label: nextLabel,
+						value: action.value,
+						display: action.display,
+					};
+				}),
+			};
+		});
+	};
+
+	const removeHeaderAction = (actionId: string) => {
+		setPortfolio((current) => {
+			if (!current) return current;
+			return {
+				...current,
+				headerActions: current.headerActions.filter((action) => action.id !== actionId),
+			};
+		});
+	};
+
+	const renderHeaderActionsEditor = () => (
+		<div className="space-y-3">
+			<div className="overflow-x-auto rounded-md border bg-background/70">
+				<div className="min-w-[920px]">
+					<div className="grid grid-cols-[140px_minmax(260px,1fr)_170px_170px_100px] gap-2 border-b px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+						<div>Type</div>
+						<div>Value</div>
+						<div>Display</div>
+						<div>Label</div>
+						<div className="text-right">Action</div>
+					</div>
+					{portfolio?.headerActions.map((action) => (
+						<div
+							key={action.id}
+							className="grid grid-cols-[140px_minmax(260px,1fr)_170px_170px_100px] items-center gap-2 border-b px-3 py-2 last:border-b-0"
+						>
+							<select
+								className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+								value={action.type}
+								onChange={(event) =>
+									setHeaderActionType(
+										action.id,
+										event.target.value as HeaderActionType,
+									)
+								}
+							>
+								<option value="github">Github</option>
+								<option value="linkedin">LinkedIn</option>
+								<option value="email">Email</option>
+								<option value="phone">Phone</option>
+								<option value="link">Custom link</option>
+							</select>
+							<Input
+								value={action.value}
+								onChange={(event) =>
+									setHeaderActionField(
+										action.id,
+										"value",
+										event.target.value,
+									)
+								}
+								placeholder={
+									action.type === "email"
+										? "name@example.com"
+										: action.type === "phone"
+											? "+63..."
+											: "https://..."
+								}
+							/>
+							<select
+								className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+								value={action.display === "value" ? "value" : "label"}
+								onChange={(event) =>
+									setHeaderActionField(
+										action.id,
+										"display",
+										event.target.value,
+									)
+								}
+							>
+								<option value="label">Use label</option>
+								<option value="value">Use actual value</option>
+							</select>
+							<Input
+								value={action.label}
+								onChange={(event) =>
+									setHeaderActionField(
+										action.id,
+										"label",
+										event.target.value,
+									)
+								}
+								placeholder="Label"
+							/>
+							<div className="flex justify-end">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() => removeHeaderAction(action.id)}
+								>
+									Remove
+								</Button>
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+		</div>
+	);
 
 	const addTechToCategory = (categoryId: string, techName: string) => {
 		setPortfolio((current) =>
@@ -654,16 +886,312 @@ export default function PortfolioEditorPage() {
 		);
 	};
 
-	const addQuickTechToCategory = (categoryId: string) => {
-		const rawValue = quickTechInput[categoryId] ?? "";
-		const value = rawValue.trim();
-		if (!value) return;
-		addTechToCategory(categoryId, value);
-		setQuickTechInput((current) => ({ ...current, [categoryId]: "" }));
-	};
-
 	const togglePanel = (panelId: string) => {
 		setOpenPanels((current) => ({ ...current, [panelId]: !current[panelId] }));
+	};
+
+	const parseTechItems = (value: string) =>
+		value
+			.split(",")
+			.map((item) => item.trim())
+			.filter(Boolean);
+
+	const getCategoryPresetKey = (
+		categoryId: string,
+		categoryName: string,
+	): TechCategoryPresetKey | "" => {
+		const override = categoryPresetOverrides[categoryId];
+		if (override === "custom") return "";
+		if (override) return override;
+		return findTechCategoryPresetKeyByName(categoryName) ?? "";
+	};
+
+	const setCreateFormTechItems = (items: string[]) => {
+		setCreateForm((current) => ({
+			...current,
+			items: items.join(", "),
+		}));
+	};
+
+	const addCreateFormTechItem = (techName: string) => {
+		const next = techName.trim();
+		if (!next) return;
+		const items = parseTechItems(createForm.items ?? "");
+		const exists = items.some(
+			(item) => normalizeTechName(item) === normalizeTechName(next),
+		);
+		if (exists) return;
+		setCreateFormTechItems([...items, next]);
+	};
+
+	const removeCreateFormTechItem = (techName: string) => {
+		const items = parseTechItems(createForm.items ?? "");
+		setCreateFormTechItems(
+			items.filter(
+				(item) => normalizeTechName(item) !== normalizeTechName(techName),
+			),
+		);
+	};
+
+	const applyPresetToCategory = (categoryId: string, presetKey: string) => {
+		if (!presetKey) {
+			setCategoryPresetOverrides((current) => ({
+				...current,
+				[categoryId]: "custom",
+			}));
+			return;
+		}
+		const preset = getTechCategoryPresetByKey(presetKey as TechCategoryPresetKey);
+		if (!preset) return;
+		setCategoryPresetOverrides((current) => ({
+			...current,
+			[categoryId]: preset.key,
+		}));
+		setPortfolio((current) =>
+			current
+				? {
+						...current,
+						techCategories: current.techCategories.map((entry) =>
+							entry.id === categoryId
+								? {
+										...entry,
+										name: preset.label,
+									}
+								: entry,
+						),
+					}
+				: current,
+		);
+	};
+
+	const getHeaderActionCreateDefaults = (
+		type: HeaderActionType,
+	): Record<string, string> => ({
+		type,
+		label: type === "link" ? "Custom link" : HEADER_ACTION_LABELS[type],
+		value: "",
+		display: "label",
+	});
+
+	const openCreateModal = (state: CreateModalState, defaults: Record<string, string> = {}) => {
+		setCreateModal(state);
+		setCreateForm(defaults);
+	};
+
+	const submitCreateModal = () => {
+		if (!createModal) return;
+		if (!portfolio) return;
+
+		switch (createModal.kind) {
+			case "header-action": {
+				if (portfolio.headerActions.length >= MAX_HEADER_ACTIONS) {
+					setToast({
+						type: "error",
+						message: `Maximum ${MAX_HEADER_ACTIONS} header actions reached.`,
+					});
+					break;
+				}
+				const type = (createForm.type || "github") as HeaderActionType;
+				const nextValue = String(createForm.value ?? "").trim();
+				if (!nextValue) {
+					setToast({
+						type: "error",
+						message: "Header action value is required.",
+					});
+					return;
+				}
+				const action = createHeaderAction();
+				action.type = type;
+				action.label =
+					createForm.label?.trim() ||
+					(type === "link" ? "Custom link" : HEADER_ACTION_LABELS[type]);
+				action.value = nextValue;
+				action.display = createForm.display === "value" ? "value" : "label";
+				setPortfolio((current) =>
+					current
+						? { ...current, headerActions: [...current.headerActions, action] }
+						: current,
+				);
+				setToast({ type: "success", message: "Header action created." });
+				break;
+			}
+			case "timeline": {
+				const item = createTimelineItem();
+				item.year = createForm.year?.trim() || "";
+				item.position = createForm.position?.trim() || "";
+				item.company = createForm.company?.trim() || "";
+				item.note = createForm.note?.trim() || "";
+				setPortfolio((current) =>
+					current ? { ...current, timeline: [...current.timeline, item] } : current,
+				);
+				setOpenPanels((current) => ({ ...current, [`timeline-${item.id}`]: true }));
+				setToast({ type: "success", message: "Timeline item created." });
+				break;
+			}
+			case "experience": {
+				const item = createExperienceItem();
+				item.role = createForm.role?.trim() || "";
+				item.company = createForm.company?.trim() || "";
+				item.period = createForm.period?.trim() || "";
+				item.highlights = (createForm.highlights || "")
+					.split("\n")
+					.map((value) => value.trim())
+					.filter(Boolean);
+				setPortfolio((current) =>
+					current
+						? { ...current, experiences: [...current.experiences, item] }
+						: current,
+				);
+				setOpenPanels((current) => ({ ...current, [`experience-${item.id}`]: true }));
+				setPendingFocusExperienceId(item.id);
+				setToast({ type: "success", message: "Experience role created." });
+				break;
+			}
+			case "tech-category": {
+				const category = createTechCategory();
+				const presetKey =
+					(createForm.presetKey as TechCategoryPresetKey | undefined) ?? undefined;
+				const preset =
+					(createForm.categoryMode ?? "preset") === "preset" && presetKey
+						? getTechCategoryPresetByKey(presetKey)
+						: undefined;
+				category.name = createForm.name?.trim() || preset?.label || "";
+				category.items = (createForm.items || "")
+					.split(",")
+					.map((value) => value.trim())
+					.filter(Boolean);
+				setPortfolio((current) =>
+					current
+						? { ...current, techCategories: [...current.techCategories, category] }
+						: current,
+				);
+				setOpenPanels((current) => ({ ...current, [`tech-${category.id}`]: true }));
+				setToast({ type: "success", message: "Tech category created." });
+				break;
+			}
+			case "project": {
+				const project = createProjectItem();
+				project.name = createForm.name?.trim() || "";
+				project.description = createForm.description?.trim() || "";
+				project.url = createForm.url?.trim() || "";
+				setPortfolio((current) =>
+					current ? { ...current, projects: [...current.projects, project] } : current,
+				);
+				setOpenPanels((current) => ({ ...current, [`project-${project.id}`]: true }));
+				setToast({ type: "success", message: "Project created." });
+				break;
+			}
+			case "custom-section": {
+				if (portfolio.customSections.length >= MAX_CUSTOM_SECTIONS) {
+					setLayoutFeedback(`Custom sections limit reached (${MAX_CUSTOM_SECTIONS}).`);
+					break;
+				}
+				const section = createCustomSection();
+				const type = createModal.customSectionType ?? "text";
+				section.type = type;
+				section.title = createForm.title?.trim() || "";
+				section.body = type === "text" ? createForm.body ?? "" : "";
+				section.items =
+					type === "bullets"
+						? (createForm.items || "")
+								.split("\n")
+								.map((value) => value.trim())
+								.filter(Boolean)
+						: [];
+				section.links =
+					type === "links"
+						? [
+								{
+									id: `${Date.now()}-link`,
+									label: createForm.label?.trim() || "",
+									url: createForm.url?.trim() || "",
+								},
+							]
+						: [];
+				const hasCustom = getLayoutOrder(portfolio).includes("custom");
+				setPortfolio((current) =>
+					current
+						? {
+								...current,
+								customSections: [...current.customSections, section],
+								layout: {
+									...current.layout,
+									sectionOrder: hasCustom
+										? getLayoutOrder(current)
+										: [...getLayoutOrder(current), "custom"],
+								},
+							}
+						: current,
+				);
+				setOpenPanels((current) => ({ ...current, [`custom-${section.id}`]: true }));
+				setPendingAutoFit(true);
+				setLayoutFeedback("Created a custom section.");
+				break;
+			}
+			case "custom-bullet": {
+				if (!createModal.sectionId) break;
+				const bullet = createForm.bullet?.trim() || "";
+				if (!bullet) {
+					setToast({ type: "error", message: "Bullet text is required." });
+					return;
+				}
+				setPortfolio((current) =>
+					current
+						? {
+								...current,
+								customSections: current.customSections.map((entry) =>
+									entry.id === createModal.sectionId
+										? { ...entry, items: [...entry.items, bullet] }
+										: entry,
+								),
+							}
+						: current,
+				);
+				setToast({ type: "success", message: "Bullet item added." });
+				break;
+			}
+			case "custom-link": {
+				if (!createModal.sectionId) break;
+				const label = createForm.label?.trim() || "";
+				const url = createForm.url?.trim() || "";
+				if (!label && !url) {
+					setToast({ type: "error", message: "Link label or URL is required." });
+					return;
+				}
+				setPortfolio((current) =>
+					current
+						? {
+								...current,
+								customSections: current.customSections.map((entry) =>
+									entry.id === createModal.sectionId
+										? {
+												...entry,
+												links: [...entry.links, { id: `${Date.now()}-link`, label, url }],
+											}
+										: entry,
+								),
+							}
+						: current,
+				);
+				setToast({ type: "success", message: "Link item added." });
+				break;
+			}
+			case "tech-item": {
+				if (!createModal.sectionId) break;
+				const tech = createForm.tech?.trim() || "";
+				if (!tech) {
+					setToast({ type: "error", message: "Technology name is required." });
+					return;
+				}
+				addTechToCategory(createModal.sectionId, tech);
+				setQuickTechInput((current) => ({ ...current, [createModal.sectionId!]: "" }));
+				setToast({ type: "success", message: "Technology added." });
+				break;
+			}
+		}
+
+		setCreateModal(null);
+		setCreateForm({});
 	};
 
 	useEffect(() => {
@@ -676,14 +1204,10 @@ export default function PortfolioEditorPage() {
 	}, [pendingFocusExperienceId, portfolio]);
 
 	const getLayoutOrder = (source: EditablePortfolio) =>
-		source.layout?.sectionOrder?.length
-			? source.layout.sectionOrder
-			: defaultPortfolioLayout.sectionOrder;
+		getVisibleSectionOrder(source);
 
-	const getHiddenSections = (source: EditablePortfolio) => {
-		const active = new Set(getLayoutOrder(source));
-		return defaultPortfolioLayout.sectionOrder.filter((section) => !active.has(section));
-	};
+	const getHiddenSections = (source: EditablePortfolio) =>
+		getVisibleHiddenSections(source);
 
 	const getSectionSpan = (
 		source: EditablePortfolio,
@@ -782,38 +1306,6 @@ export default function PortfolioEditorPage() {
 		});
 		setPendingAutoFit(true);
 		setLayoutFeedback(`Added ${SECTION_META[sectionKey].title} back to canvas.`);
-	};
-
-	const addCustomSectionWithType = (type: CustomSection["type"] = "text") => {
-		let wasAdded = false;
-		setPortfolio((current) => {
-			if (!current) return current;
-			if (current.customSections.length >= MAX_CUSTOM_SECTIONS) return current;
-			const section = createCustomSection();
-			section.type = type;
-			section.body = type === "text" ? "" : section.body;
-			section.items = type === "bullets" ? [""] : [];
-			section.links =
-				type === "links" ? [{ id: `${Date.now()}-link`, label: "", url: "" }] : [];
-			wasAdded = true;
-			const nextOrder: PortfolioSectionKey[] = getLayoutOrder(current).includes("custom")
-				? getLayoutOrder(current)
-				: [...getLayoutOrder(current), "custom"];
-			return {
-				...current,
-				customSections: [...current.customSections, section],
-				layout: {
-					...current.layout,
-					sectionOrder: nextOrder,
-				},
-			};
-		});
-		if (!wasAdded) {
-			setLayoutFeedback(`Custom sections limit reached (${MAX_CUSTOM_SECTIONS}).`);
-			return;
-		}
-		setPendingAutoFit(true);
-		setLayoutFeedback("Created a custom section. Edit its content below.");
 	};
 
 	const buildGridLayoutFromPortfolio = (source: EditablePortfolio): GridLayoutModel => {
@@ -985,7 +1477,17 @@ export default function PortfolioEditorPage() {
 						variant="outline"
 						size="sm"
 						disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
-						onClick={() => addCustomSectionWithType("text")}
+						onClick={() =>
+							openCreateModal(
+								{
+									kind: "custom-section",
+									title: "Create Text Section",
+									description: "Provide initial content for the new custom text section.",
+									customSectionType: "text",
+								},
+								{ title: "", body: "" },
+							)
+						}
 					>
 						Add text section
 					</Button>
@@ -994,7 +1496,18 @@ export default function PortfolioEditorPage() {
 						variant="outline"
 						size="sm"
 						disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
-						onClick={() => addCustomSectionWithType("bullets")}
+						onClick={() =>
+							openCreateModal(
+								{
+									kind: "custom-section",
+									title: "Create Bullet List Section",
+									description:
+										"Add a title and initial bullet items (one per line).",
+									customSectionType: "bullets",
+								},
+								{ title: "", items: "" },
+							)
+						}
 					>
 						Add bullet list
 					</Button>
@@ -1003,7 +1516,17 @@ export default function PortfolioEditorPage() {
 						variant="outline"
 						size="sm"
 						disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
-						onClick={() => addCustomSectionWithType("links")}
+						onClick={() =>
+							openCreateModal(
+								{
+									kind: "custom-section",
+									title: "Create Links Section",
+									description: "Add a title and the first link for this section.",
+									customSectionType: "links",
+								},
+								{ title: "", label: "", url: "" },
+							)
+						}
 					>
 						Add links section
 					</Button>
@@ -1011,7 +1534,7 @@ export default function PortfolioEditorPage() {
 				<div className="text-xs text-muted-foreground">
 					{portfolio.customSections.length} / {MAX_CUSTOM_SECTIONS} custom sections
 				</div>
-				<div className="max-h-[34rem] space-y-4 overflow-y-auto pr-1">
+				<div className="space-y-4">
 					{portfolio.customSections.map((item, index) => {
 					const panelId = `custom-${item.id}`;
 					const isOpen = openPanels[panelId] ?? index === 0;
@@ -1193,17 +1716,14 @@ export default function PortfolioEditorPage() {
 											variant="outline"
 											size="sm"
 											onClick={() =>
-												setPortfolio((current) =>
-													current
-														? {
-																...current,
-																customSections: current.customSections.map((entry) =>
-																	entry.id === item.id
-																		? { ...entry, items: [...entry.items, ""] }
-																		: entry,
-																),
-															}
-														: current,
+												openCreateModal(
+													{
+														kind: "custom-bullet",
+														title: "Add Bullet Item",
+														description: "Add one bullet item to this section.",
+														sectionId: item.id,
+													},
+													{ bullet: "" },
 												)
 											}
 										>
@@ -1301,23 +1821,14 @@ export default function PortfolioEditorPage() {
 											variant="outline"
 											size="sm"
 											onClick={() =>
-												setPortfolio((current) =>
-													current
-														? {
-																...current,
-																customSections: current.customSections.map((entry) =>
-																	entry.id === item.id
-																		? {
-																				...entry,
-																				links: [
-																					...entry.links,
-																					{ id: `${Date.now()}-link`, label: "", url: "" },
-																				],
-																			}
-																		: entry,
-																),
-															}
-														: current,
+												openCreateModal(
+													{
+														kind: "custom-link",
+														title: "Add Link",
+														description: "Add a new link row to this section.",
+														sectionId: item.id,
+													},
+													{ label: "", url: "" },
 												)
 											}
 										>
@@ -1476,18 +1987,49 @@ export default function PortfolioEditorPage() {
 						</CardAction>
 				</CardHeader>
 			</Card>
+			{draftMode ? (
+				<div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+					You are creating a draft. This is not public yet until you save and set a version live.
+				</div>
+			) : editingVersion && !editingVersionIsLive ? (
+				<div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2">
+					<div className="text-sm text-amber-800 dark:text-amber-200">
+						You are editing a draft version. Public generated portfolio still shows the current live version.
+					</div>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() => activateVersionMutation.mutate(editingVersion.id)}
+						disabled={activateVersionMutation.isPending}
+					>
+						{activateVersionMutation.isPending ? "Setting live..." : "Set this version live"}
+					</Button>
+				</div>
+			) : null}
 
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
 				<TabsList
-					className="w-full justify-start gap-1 overflow-x-auto rounded-xl bg-background/80 p-1"
-					variant="line"
+					className="!h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/45 p-1"
 				>
-					<TabsTrigger value="profile">Profile</TabsTrigger>
-					<TabsTrigger value="story">Story</TabsTrigger>
-					<TabsTrigger value="career">Career</TabsTrigger>
-					<TabsTrigger value="stack">Stack & Projects</TabsTrigger>
-					<TabsTrigger value="layout">Layout</TabsTrigger>
-					<TabsTrigger value="extras">Extras</TabsTrigger>
+					<TabsTrigger value="profile" className="h-9 flex-none rounded-lg px-3">
+						Profile
+					</TabsTrigger>
+					<TabsTrigger value="story" className="h-9 flex-none rounded-lg px-3">
+						Story
+					</TabsTrigger>
+					<TabsTrigger value="career" className="h-9 flex-none rounded-lg px-3">
+						Career
+					</TabsTrigger>
+					<TabsTrigger value="stack" className="h-9 flex-none rounded-lg px-3">
+						Stack & Projects
+					</TabsTrigger>
+					<TabsTrigger value="layout" className="h-9 flex-none rounded-lg px-3">
+						Layout
+					</TabsTrigger>
+					<TabsTrigger value="extras" className="h-9 flex-none rounded-lg px-3">
+						Extras
+					</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="profile" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -1495,7 +2037,7 @@ export default function PortfolioEditorPage() {
 						<CardHeader>
 							<div>
 								<CardTitle>Identity</CardTitle>
-								<CardDescription>Your name, headline, and contact basics.</CardDescription>
+								<CardDescription>Your name, headline, and background summary.</CardDescription>
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
@@ -1506,7 +2048,6 @@ export default function PortfolioEditorPage() {
 								["experienceSummary", "Experience summary"],
 								["education", "Education"],
 								["availability", "Availability"],
-								["phone", "Phone"],
 							].map(([key, label]) => (
 								<div key={key} className="space-y-2 rounded-lg bg-muted/20 p-3">
 									<Label htmlFor={key}>{label}</Label>
@@ -1529,12 +2070,30 @@ export default function PortfolioEditorPage() {
 						<CardHeader>
 							<CardTitle>Links & Visuals</CardTitle>
 							<CardDescription>
-								Set your profile image and social destinations.
+								Set your profile media and header action chips.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div className="space-y-2 rounded-lg bg-muted/20 p-4">
 								<Label>Profile photo</Label>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										type="button"
+										variant={avatarInputMode === "upload" ? "default" : "outline"}
+										size="sm"
+										onClick={() => setAvatarInputMode("upload")}
+									>
+										Upload photo
+									</Button>
+									<Button
+										type="button"
+										variant={avatarInputMode === "link" ? "default" : "outline"}
+										size="sm"
+										onClick={() => setAvatarInputMode("link")}
+									>
+										Photo link
+									</Button>
+								</div>
 								<div className="flex items-center gap-3">
 									<img
 										src={getAvatarUrl(portfolio.avatarUrl)}
@@ -1542,30 +2101,52 @@ export default function PortfolioEditorPage() {
 										className="size-16 rounded-full border object-cover"
 									/>
 									<div className="space-y-2">
-										<div className="flex flex-wrap gap-2">
-											<Button
-												type="button"
-												variant="outline"
-												size="sm"
-												onClick={() => avatarInputRef.current?.click()}
-												disabled={uploadAvatarMutation.isPending}
-											>
-												{uploadAvatarMutation.isPending
-													? "Uploading..."
-													: "Upload photo"}
-											</Button>
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onClick={() => setBasicField("avatarUrl", "")}
-											>
-												Use default
-											</Button>
-										</div>
-										<p className="text-xs text-muted-foreground">
-											Accepted: JPG, PNG, WEBP, GIF. Max size 3MB.
-										</p>
+										{avatarInputMode === "upload" ? (
+											<>
+												<div className="flex flex-wrap gap-2">
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={() => avatarInputRef.current?.click()}
+														disabled={uploadAvatarMutation.isPending}
+													>
+														{uploadAvatarMutation.isPending
+															? "Uploading..."
+															: "Upload photo"}
+													</Button>
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														onClick={() => setBasicField("avatarUrl", "")}
+													>
+														Use default
+													</Button>
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Accepted: JPG, PNG, WEBP, GIF. Max size 3MB.
+												</p>
+											</>
+										) : (
+											<div className="space-y-2">
+												<Input
+													value={String(portfolio.avatarUrl ?? "")}
+													onChange={(event) =>
+														setBasicField("avatarUrl", event.target.value)
+													}
+													placeholder="https://example.com/avatar.jpg"
+												/>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													onClick={() => setBasicField("avatarUrl", "")}
+												>
+													Use default
+												</Button>
+											</div>
+										)}
 									</div>
 								</div>
 								<input
@@ -1584,6 +2165,24 @@ export default function PortfolioEditorPage() {
 							</div>
 							<div className="space-y-2 rounded-lg bg-muted/20 p-4">
 								<Label>Cover image</Label>
+								<div className="flex flex-wrap gap-2">
+									<Button
+										type="button"
+										variant={coverInputMode === "upload" ? "default" : "outline"}
+										size="sm"
+										onClick={() => setCoverInputMode("upload")}
+									>
+										Upload cover
+									</Button>
+									<Button
+										type="button"
+										variant={coverInputMode === "link" ? "default" : "outline"}
+										size="sm"
+										onClick={() => setCoverInputMode("link")}
+									>
+										Cover link
+									</Button>
+								</div>
 								<div className="space-y-2">
 									<div className="overflow-hidden rounded-md border">
 										<img
@@ -1595,28 +2194,52 @@ export default function PortfolioEditorPage() {
 											className="h-24 w-full object-cover"
 										/>
 									</div>
-									<div className="flex flex-wrap gap-2">
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											onClick={() => coverInputRef.current?.click()}
-											disabled={uploadCoverMutation.isPending}
-										>
-											{uploadCoverMutation.isPending ? "Uploading..." : "Upload cover"}
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											onClick={() => setBasicField("coverUrl", "")}
-										>
-											Clear cover
-										</Button>
-									</div>
-									<p className="text-xs text-muted-foreground">
-										Accepted: JPG, PNG, WEBP, GIF. Max size 5MB.
-									</p>
+									{coverInputMode === "upload" ? (
+										<>
+											<div className="flex flex-wrap gap-2">
+												<Button
+													type="button"
+													variant="outline"
+													size="sm"
+													onClick={() => coverInputRef.current?.click()}
+													disabled={uploadCoverMutation.isPending}
+												>
+													{uploadCoverMutation.isPending
+														? "Uploading..."
+														: "Upload cover"}
+												</Button>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													onClick={() => setBasicField("coverUrl", "")}
+												>
+													Clear cover
+												</Button>
+											</div>
+											<p className="text-xs text-muted-foreground">
+												Accepted: JPG, PNG, WEBP, GIF. Max size 5MB.
+											</p>
+										</>
+									) : (
+										<div className="space-y-2">
+											<Input
+												value={String(portfolio.coverUrl ?? "")}
+												onChange={(event) =>
+													setBasicField("coverUrl", event.target.value)
+												}
+												placeholder="https://example.com/cover.jpg"
+											/>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => setBasicField("coverUrl", "")}
+											>
+												Clear cover
+											</Button>
+										</div>
+									)}
 								</div>
 								<input
 									ref={coverInputRef}
@@ -1633,39 +2256,38 @@ export default function PortfolioEditorPage() {
 								/>
 							</div>
 							<div className="rounded-lg bg-muted/20 p-4">
-								<div className="mb-3 text-sm font-medium">Profile links</div>
-								<div className="space-y-3">
-									{[
-								["avatarUrl", "Avatar image URL"],
-								["coverUrl", "Cover image URL"],
-								["githubUrl", "GitHub URL (optional)"],
-								["githubUsername", "GitHub username (optional)"],
-								["linkedinUrl", "LinkedIn URL"],
-									].map(([key, label]) => (
-										<div key={key} className="space-y-2">
-											<Label htmlFor={key}>{label}</Label>
-											<Input
-												id={key}
-												value={String(portfolio[key as keyof EditablePortfolio] ?? "")}
-												onChange={(event) =>
-													setBasicField(
-														key as Parameters<typeof setBasicField>[0],
-														event.target.value,
-													)
-												}
-											/>
-											{key === "coverUrl" &&
-												Boolean(String(portfolio.coverUrl ?? "").trim()) && (
-												<div className="overflow-hidden rounded-md border">
-													<img
-														src={resolveAssetUrl(String(portfolio.coverUrl ?? ""))}
-														alt="Cover preview"
-														className="h-24 w-full object-cover"
-													/>
-												</div>
-											)}
+								<div className="mb-3 flex items-center justify-between gap-2">
+									<div>
+										<div className="text-sm font-medium">Header actions</div>
+										<div className="text-xs text-muted-foreground">
+											Shown as clickable chips in your header. Max 4.
 										</div>
-									))}
+									</div>
+									<div className="flex items-center gap-2">
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => setIsHeaderActionsEditorOpen(true)}
+										>
+											Manage actions
+										</Button>
+									</div>
+								</div>
+								<div className="rounded-md border bg-background/70 px-3 py-2">
+									<div className="text-xs text-muted-foreground">
+										{portfolio.headerActions.length} of {MAX_HEADER_ACTIONS} actions configured
+									</div>
+									<div className="mt-2 flex flex-wrap gap-2">
+										{portfolio.headerActions.map((action) => (
+											<span
+												key={action.id}
+												className="rounded-md border bg-muted/45 px-2 py-1 text-xs"
+											>
+												{action.type} • {action.display === "value" ? "value" : "label"}
+											</span>
+										))}
+									</div>
 								</div>
 							</div>
 						</CardContent>
@@ -1675,95 +2297,67 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="story" className="space-y-6">
 					<Card className="shadow-none">
 						<CardHeader>
-							<div>
-								<CardTitle>About section</CardTitle>
-								<CardDescription>
-									Write short paragraphs focused on impact and clarity.
-								</CardDescription>
+							<div className="flex items-center justify-between gap-3">
+								<div>
+									<CardTitle>About section</CardTitle>
+									<CardDescription>
+										Write your full About content in markdown.
+									</CardDescription>
+								</div>
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
-								{portfolio.about.map((paragraph, index) => {
-								const panelId = `about-${index}`;
-								const isOpen = openPanels[panelId] ?? index === 0;
-								return (
-								<div key={index} className="space-y-3 rounded-xl bg-muted/20 p-4">
-									<div className="flex items-center justify-between gap-2">
-										<div className="text-xs font-medium text-muted-foreground">
-											Paragraph {index + 1}
-										</div>
-										<div className="flex items-center gap-1">
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onClick={() => togglePanel(panelId)}
-											>
-												{isOpen ? (
-													<>
-														Collapse <ChevronUp className="size-3.5" />
-													</>
-												) : (
-													<>
-														Edit <ChevronDown className="size-3.5" />
-													</>
-												)}
-											</Button>
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onClick={() =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	about: current.about.filter((_, i) => i !== index),
-																}
-															: current,
-													)
-												}
-											>
-												Remove paragraph
-											</Button>
+							<div className="space-y-3 rounded-xl bg-muted/20 p-4">
+								<div className="flex items-center justify-between gap-3">
+									<div className="text-xs font-medium text-muted-foreground">
+										About (Markdown)
+									</div>
+									<div className="flex items-center gap-2">
+										<Button
+											type="button"
+											size="sm"
+											variant={aboutMarkdownView === "write" ? "default" : "outline"}
+											onClick={() => setAboutMarkdownView("write")}
+										>
+											Write
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant={aboutMarkdownView === "preview" ? "default" : "outline"}
+											onClick={() => setAboutMarkdownView("preview")}
+										>
+											Preview
+										</Button>
+									</div>
+								</div>
+								{aboutMarkdownView === "write" ? (
+									<Textarea
+										value={aboutMarkdownValue}
+										rows={14}
+										onChange={(event) => {
+											const nextValue = event.target.value;
+											setAboutMarkdownValue(nextValue);
+											setPortfolio((current) => {
+												if (!current) return current;
+												return {
+													...current,
+													about: [nextValue],
+												};
+											});
+										}}
+										placeholder="Write your full About content in markdown..."
+									/>
+								) : (
+									<div className="space-y-2 rounded-lg border bg-background px-3 py-2">
+										<div className="markdown-render text-sm">
+											<ReactMarkdown remarkPlugins={[remarkGfm]}>
+												{aboutMarkdownValue.trim() || "_No content yet._"}
+											</ReactMarkdown>
 										</div>
 									</div>
-									{!isOpen ? (
-										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
-											{paragraph?.trim() ? paragraph : "No content yet."}
-										</div>
-									) : (
-										<Textarea
-											value={paragraph}
-											rows={4}
-											onChange={(event) =>
-												setPortfolio((current) => {
-													if (!current) return current;
-													const next = [...current.about];
-													next[index] = event.target.value;
-													return { ...current, about: next };
-												})
-											}
-										/>
-									)}
-								</div>
-								);
-							})}
+								)}
 							</div>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? { ...current, about: [...current.about, ""] }
-											: current,
-									)
-								}
-							>
-								Add paragraph
-							</Button>
 						</CardContent>
 					</Card>
 				</TabsContent>
@@ -1776,27 +2370,42 @@ export default function PortfolioEditorPage() {
 								<CardDescription>Career milestones and key dates.</CardDescription>
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-4">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? { ...current, timeline: [...current.timeline, createTimelineItem()] }
-											: current,
-									)
-								}
-							>
-								Add timeline item
-							</Button>
-							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+						<CardContent className="space-y-4 border-t border-border/60 pt-4">
+							<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2">
+								<div className="text-xs text-muted-foreground">
+									Each card below is one timeline entry. Expand a card to edit fields.
+								</div>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										openCreateModal(
+											{
+												kind: "timeline",
+												title: "Create Timeline Item",
+												description: "Set the milestone details before adding it.",
+											},
+											{ year: "", position: "", company: "", note: "" },
+										)
+									}
+								>
+									Add timeline item
+								</Button>
+							</div>
+							<div className="space-y-4">
 								{portfolio.timeline.map((item, index) => {
 								const panelId = `timeline-${item.id}`;
 								const isOpen = openPanels[panelId] ?? index === 0;
 								return (
-								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+								<div
+									key={item.id}
+									className={`space-y-3 rounded-xl border p-4 transition-colors ${
+										isOpen
+											? "border-(--app-accent)/50 bg-(--app-accent)/[0.08] shadow-[inset_3px_0_0_var(--app-accent)]"
+											: "border-border/60 bg-muted/20"
+									}`}
+								>
 									<div className="flex items-center justify-between gap-2">
 										<div className="space-y-0.5">
 											<div className="text-xs font-medium text-muted-foreground">
@@ -1805,6 +2414,9 @@ export default function PortfolioEditorPage() {
 											<div className="text-sm font-medium">
 												{item.position || item.company || "Untitled milestone"}
 											</div>
+										</div>
+										<div className="rounded-md bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+											{isOpen ? "Editing" : "Collapsed"}
 										</div>
 										<div className="flex items-center gap-1">
 											<Button
@@ -1845,16 +2457,83 @@ export default function PortfolioEditorPage() {
 										</div>
 									</div>
 									{!isOpen ? (
-										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
-											{[item.year, item.position, item.company].filter(Boolean).join(" • ") ||
-												"No details yet."}
+										<div className="grid gap-2 rounded-lg border border-border/50 bg-background/70 p-3 text-sm text-muted-foreground sm:grid-cols-2">
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Date
+												</div>
+												<div>{item.year?.trim() || "—"}</div>
+											</div>
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Role
+												</div>
+												<div>{item.position?.trim() || "—"}</div>
+											</div>
+											<div className="space-y-0.5 sm:col-span-2">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Company
+												</div>
+												<div>{item.company?.trim() || "—"}</div>
+											</div>
 										</div>
 									) : (
-										<>
+										<div className="space-y-3 rounded-lg border border-border/50 bg-background/70 p-3">
 											<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+												<div className="space-y-1">
+													<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														Year
+													</Label>
+													<Input
+														placeholder="2026"
+														value={item.year}
+														onChange={(event) =>
+															setPortfolio((current) =>
+																current
+																	? {
+																			...current,
+																			timeline: current.timeline.map((entry) =>
+																				entry.id === item.id
+																					? { ...entry, year: event.target.value }
+																					: entry,
+																			),
+																		}
+																	: current,
+															)
+														}
+													/>
+												</div>
+												<div className="space-y-1">
+													<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														Position
+													</Label>
+													<Input
+														placeholder="Full Stack Developer"
+														value={item.position}
+														onChange={(event) =>
+															setPortfolio((current) =>
+																current
+																	? {
+																			...current,
+																			timeline: current.timeline.map((entry) =>
+																				entry.id === item.id
+																					? { ...entry, position: event.target.value }
+																					: entry,
+																			),
+																		}
+																	: current,
+															)
+														}
+													/>
+												</div>
+											</div>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Company
+												</Label>
 												<Input
-													placeholder="Year"
-													value={item.year}
+													placeholder="Your Company"
+													value={item.company}
 													onChange={(event) =>
 														setPortfolio((current) =>
 															current
@@ -1862,25 +2541,7 @@ export default function PortfolioEditorPage() {
 																		...current,
 																		timeline: current.timeline.map((entry) =>
 																			entry.id === item.id
-																				? { ...entry, year: event.target.value }
-																				: entry,
-																		),
-																	}
-																: current,
-														)
-													}
-												/>
-												<Input
-													placeholder="Position"
-													value={item.position}
-													onChange={(event) =>
-														setPortfolio((current) =>
-															current
-																? {
-																		...current,
-																		timeline: current.timeline.map((entry) =>
-																			entry.id === item.id
-																				? { ...entry, position: event.target.value }
+																				? { ...entry, company: event.target.value }
 																				: entry,
 																		),
 																	}
@@ -1889,43 +2550,30 @@ export default function PortfolioEditorPage() {
 													}
 												/>
 											</div>
-											<Input
-												placeholder="Company"
-												value={item.company}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	timeline: current.timeline.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, company: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-											<Input
-												placeholder="Note"
-												value={item.note}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	timeline: current.timeline.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, note: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-										</>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Note
+												</Label>
+												<Input
+													placeholder="Current role"
+													value={item.note}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		timeline: current.timeline.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, note: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+										</div>
 									)}
 								</div>
 								);
@@ -1939,31 +2587,30 @@ export default function PortfolioEditorPage() {
 							<CardTitle>Experience</CardTitle>
 							<CardDescription>Roles, periods, and achievements.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-4">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									const newItem = createExperienceItem();
-									setPortfolio((current) =>
-										current
-											? {
-													...current,
-													experiences: [...current.experiences, newItem],
-												}
-											: current,
-									);
-									setOpenPanels((current) => ({
-										...current,
-										[`experience-${newItem.id}`]: true,
-									}));
-									setPendingFocusExperienceId(newItem.id);
-								}}
-							>
-								Add role
-							</Button>
-							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+						<CardContent className="space-y-4 border-t border-border/60 pt-4">
+							<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2">
+								<div className="text-xs text-muted-foreground">
+									Each card below is one role. Expand a card to edit role, company, and highlights.
+								</div>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										openCreateModal(
+											{
+												kind: "experience",
+												title: "Create Role",
+												description: "Set role details before adding it to Experience.",
+											},
+											{ role: "", company: "", period: "", highlights: "" },
+										)
+									}
+								>
+									Add role
+								</Button>
+							</div>
+							<div className="space-y-4">
 								{portfolio.experiences.map((item, index) => {
 								const panelId = `experience-${item.id}`;
 								const isOpen = openPanels[panelId] ?? index === 0;
@@ -1974,7 +2621,11 @@ export default function PortfolioEditorPage() {
 										experienceItemRefs.current[item.id] = node;
 									}}
 									tabIndex={-1}
-									className="space-y-3 rounded-xl bg-muted/20 p-4 outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent)"
+									className={`space-y-3 rounded-xl border p-4 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-(--app-accent) ${
+										isOpen
+											? "border-(--app-accent)/50 bg-(--app-accent)/[0.08] shadow-[inset_3px_0_0_var(--app-accent)]"
+											: "border-border/60 bg-muted/20"
+									}`}
 								>
 									<div className="flex items-center justify-between gap-2">
 										<div className="space-y-0.5">
@@ -1984,6 +2635,9 @@ export default function PortfolioEditorPage() {
 											<div className="text-sm font-medium">
 												{item.role || item.company || "Untitled role"}
 											</div>
+										</div>
+										<div className="rounded-md bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+											{isOpen ? "Editing" : "Collapsed"}
 										</div>
 										<div className="flex items-center gap-1">
 											<Button
@@ -2024,16 +2678,83 @@ export default function PortfolioEditorPage() {
 										</div>
 									</div>
 									{!isOpen ? (
-										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
-											{[item.role, item.company, item.period].filter(Boolean).join(" • ") ||
-												"No details yet."}
+										<div className="grid gap-2 rounded-lg border border-border/50 bg-background/70 p-3 text-sm text-muted-foreground sm:grid-cols-2">
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Role
+												</div>
+												<div>{item.role?.trim() || "—"}</div>
+											</div>
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Company
+												</div>
+												<div>{item.company?.trim() || "—"}</div>
+											</div>
+											<div className="space-y-0.5 sm:col-span-2">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Period
+												</div>
+												<div>{item.period?.trim() || "—"}</div>
+											</div>
 										</div>
 									) : (
-										<>
+										<div className="space-y-3 rounded-lg border border-border/50 bg-background/70 p-3">
 											<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+												<div className="space-y-1">
+													<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														Role
+													</Label>
+													<Input
+														placeholder="Full Stack Developer"
+														value={item.role}
+														onChange={(event) =>
+															setPortfolio((current) =>
+																current
+																	? {
+																			...current,
+																			experiences: current.experiences.map((entry) =>
+																				entry.id === item.id
+																					? { ...entry, role: event.target.value }
+																					: entry,
+																			),
+																		}
+																	: current,
+															)
+														}
+													/>
+												</div>
+												<div className="space-y-1">
+													<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														Company
+													</Label>
+													<Input
+														placeholder="Your Company"
+														value={item.company}
+														onChange={(event) =>
+															setPortfolio((current) =>
+																current
+																	? {
+																			...current,
+																			experiences: current.experiences.map((entry) =>
+																				entry.id === item.id
+																					? { ...entry, company: event.target.value }
+																					: entry,
+																			),
+																		}
+																	: current,
+															)
+														}
+													/>
+												</div>
+											</div>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Period
+												</Label>
 												<Input
-													placeholder="Role"
-													value={item.role}
+													placeholder="2024 — Present"
+													value={item.period}
 													onChange={(event) =>
 														setPortfolio((current) =>
 															current
@@ -2041,25 +2762,7 @@ export default function PortfolioEditorPage() {
 																		...current,
 																		experiences: current.experiences.map((entry) =>
 																			entry.id === item.id
-																				? { ...entry, role: event.target.value }
-																				: entry,
-																		),
-																	}
-																: current,
-														)
-													}
-												/>
-												<Input
-													placeholder="Company"
-													value={item.company}
-													onChange={(event) =>
-														setPortfolio((current) =>
-															current
-																? {
-																		...current,
-																		experiences: current.experiences.map((entry) =>
-																			entry.id === item.id
-																				? { ...entry, company: event.target.value }
+																				? { ...entry, period: event.target.value }
 																				: entry,
 																		),
 																	}
@@ -2068,50 +2771,37 @@ export default function PortfolioEditorPage() {
 													}
 												/>
 											</div>
-											<Input
-												placeholder="Period"
-												value={item.period}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	experiences: current.experiences.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, period: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-											<Textarea
-												placeholder="One highlight per line"
-												rows={4}
-												value={item.highlights.join("\n")}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	experiences: current.experiences.map((entry) =>
-																		entry.id === item.id
-																			? {
-																					...entry,
-																					highlights: event.target.value
-																						.split("\n")
-																						.map((value) => value.trim())
-																						.filter(Boolean),
-																				}
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-										</>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Highlights (one per line)
+												</Label>
+												<Textarea
+													placeholder="Built feature X..."
+													rows={4}
+													value={item.highlights.join("\n")}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		experiences: current.experiences.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						highlights: event.target.value
+																							.split("\n")
+																							.map((value) => value.trim())
+																							.filter(Boolean),
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+										</div>
 									)}
 								</div>
 								);
@@ -2129,30 +2819,48 @@ export default function PortfolioEditorPage() {
 								<CardDescription>Group skills by category.</CardDescription>
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-4">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? {
-													...current,
-													techCategories: [...current.techCategories, createTechCategory()],
-												}
-											: current,
-									)
-								}
-							>
-								Add category
-							</Button>
-							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+						<CardContent className="space-y-4 border-t border-border/60 pt-4">
+							<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2">
+								<div className="text-xs text-muted-foreground">
+									Each card below is one tech category. Expand a card to edit details.
+								</div>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										openCreateModal(
+											{
+												kind: "tech-category",
+												title: "Create Tech Category",
+												description: "Create the category first, then refine it in the list.",
+											},
+											{
+												categoryMode: "preset",
+												presetKey: "frontend",
+												name: "Frontend",
+												items: "",
+												techQuery: "",
+											},
+										)
+									}
+								>
+									Add category
+								</Button>
+							</div>
+							<div className="space-y-4">
 								{portfolio.techCategories.map((item, index) => {
 								const panelId = `tech-${item.id}`;
 								const isOpen = openPanels[panelId] ?? index === 0;
 								return (
-								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+								<div
+									key={item.id}
+									className={`space-y-3 rounded-xl border p-4 transition-colors ${
+										isOpen
+											? "border-(--app-accent)/50 bg-(--app-accent)/[0.08] shadow-[inset_3px_0_0_var(--app-accent)]"
+											: "border-border/60 bg-muted/20"
+									}`}
+								>
 									<div className="flex items-center justify-between gap-2">
 										<div className="space-y-0.5">
 											<div className="text-xs font-medium text-muted-foreground">
@@ -2161,6 +2869,9 @@ export default function PortfolioEditorPage() {
 											<div className="text-sm font-medium">
 												{item.name || "Untitled category"}
 											</div>
+										</div>
+										<div className="rounded-md bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+											{isOpen ? "Editing" : "Collapsed"}
 										</div>
 										<div className="flex items-center gap-1">
 											<Button
@@ -2201,55 +2912,115 @@ export default function PortfolioEditorPage() {
 										</div>
 									</div>
 									{!isOpen ? (
-										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
-											{item.items.length} tech item{item.items.length === 1 ? "" : "s"}
+										<div className="grid gap-2 rounded-lg border border-border/50 bg-background/70 p-3 text-sm text-muted-foreground sm:grid-cols-2">
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Category
+												</div>
+												<div>{item.name?.trim() || "—"}</div>
+											</div>
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Items
+												</div>
+												<div>
+													{item.items.length} tech item{item.items.length === 1 ? "" : "s"}
+												</div>
+											</div>
 										</div>
 									) : (
-										<>
-											<Input
-												placeholder="Category name"
-												value={item.name}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
+										<div className="space-y-3 rounded-lg border border-border/50 bg-background/70 p-3">
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Preset category
+												</Label>
+													<select
+														className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+														value={getCategoryPresetKey(item.id, item.name)}
+														onChange={(event) =>
+															applyPresetToCategory(item.id, event.target.value)
+														}
+												>
+													<option value="">Custom (manual)</option>
+													{techCategoryPresets.map((preset) => (
+														<option key={`preset-${preset.key}`} value={preset.key}>
+															{preset.label}
+														</option>
+													))}
+												</select>
+											</div>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Category name
+												</Label>
+												<Input
+													placeholder="Frontend"
+													value={item.name}
+														onChange={(event) =>
+															{
+																setCategoryPresetOverrides((current) => ({
 																	...current,
-																	techCategories: current.techCategories.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, name: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-											<Input
-												placeholder="React, TypeScript, Tailwind"
-												value={item.items.join(", ")}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	techCategories: current.techCategories.map((entry) =>
-																		entry.id === item.id
-																			? {
-																					...entry,
-																					items: event.target.value
-																						.split(",")
-																						.map((value) => value.trim())
-																						.filter(Boolean),
-																				}
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
+																	[item.id]: "custom",
+																}));
+																setPortfolio((current) =>
+																	current
+																		? {
+																				...current,
+																				techCategories: current.techCategories.map((entry) =>
+																					entry.id === item.id
+																						? { ...entry, name: event.target.value }
+																						: entry,
+																				),
+																			}
+																		: current,
+																);
+															}
+														}
+													/>
+												</div>
+											{getCategoryPresetKey(item.id, item.name) ? (
+												<div className="space-y-2">
+													<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														Preset library
+													</div>
+													<div className="flex flex-wrap gap-2">
+															{(
+																getTechCategoryPresetByKey(
+																	getCategoryPresetKey(
+																		item.id,
+																		item.name,
+																	) as TechCategoryPresetKey,
+																)?.items ?? []
+															).slice(0, 18).map((techName) => {
+															const tech = getTechIcon(techName);
+															const hasTech = item.items.some(
+																(existing) =>
+																	normalizeTechName(existing) ===
+																	normalizeTechName(techName),
+															);
+															return (
+																<Button
+																	key={`${item.id}-preset-${techName}`}
+																	type="button"
+																	variant={hasTech ? "secondary" : "outline"}
+																	size="sm"
+																	disabled={hasTech}
+																	className={hasTech ? "font-semibold opacity-100" : ""}
+																	onClick={() => addTechToCategory(item.id, techName)}
+																>
+																	{tech && <tech.Icon className={tech.className} />}
+																	{techName}
+																	{hasTech ? " (Selected)" : ""}
+																</Button>
+															);
+														})}
+													</div>
+												</div>
+											) : null}
 											<div className="space-y-2">
-												<div className="text-xs text-muted-foreground">Search and add</div>
+												<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Add technology
+												</div>
 												<div className="flex gap-2">
 													<Input
 														list={`tech-options-${item.id}`}
@@ -2264,14 +3035,38 @@ export default function PortfolioEditorPage() {
 														onKeyDown={(event) => {
 															if (event.key === "Enter") {
 																event.preventDefault();
-																addQuickTechToCategory(item.id);
+																openCreateModal(
+																	{
+																		kind: "tech-item",
+																		title: "Add Technology",
+																		description:
+																			"Add one technology to this category.",
+																		sectionId: item.id,
+																	},
+																	{
+																		tech: quickTechInput[item.id] ?? "",
+																	},
+																);
 															}
 														}}
 													/>
 													<Button
 														type="button"
 														variant="outline"
-														onClick={() => addQuickTechToCategory(item.id)}
+														onClick={() =>
+															openCreateModal(
+																{
+																	kind: "tech-item",
+																	title: "Add Technology",
+																	description:
+																		"Add one technology to this category.",
+																	sectionId: item.id,
+																},
+																{
+																	tech: quickTechInput[item.id] ?? "",
+																},
+															)
+														}
 													>
 														Add
 													</Button>
@@ -2285,56 +3080,70 @@ export default function PortfolioEditorPage() {
 													</datalist>
 												</div>
 											</div>
-											<div className="space-y-2">
-												<div className="text-xs text-muted-foreground">Quick add</div>
-												<div className="flex flex-wrap gap-2">
-													{getSuggestedTechForCategory(item.name, 12).map((techName) => {
-														const tech = getTechIcon(techName);
-														const hasTech = item.items.some(
-															(existing) =>
-																normalizeTechName(existing) ===
-																normalizeTechName(techName),
-														);
-														return (
-															<Button
-																key={`${item.id}-${techName}`}
-																type="button"
-																variant={hasTech ? "secondary" : "outline"}
-																size="sm"
-																disabled={hasTech}
-																className={hasTech ? "font-semibold opacity-100" : ""}
-																onClick={() => addTechToCategory(item.id, techName)}
-															>
-																{tech && <tech.Icon className={tech.className} />}
-																{techName}
-																{hasTech ? " (Selected)" : ""}
-															</Button>
-														);
-													})}
+											{!getCategoryPresetKey(item.id, item.name) ? (
+												<div className="space-y-2">
+													<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+														Quick add
+													</div>
+													<div className="flex flex-wrap gap-2">
+														{getSuggestedTechForCategory(item.name, 12).map((techName) => {
+															const tech = getTechIcon(techName);
+															const hasTech = item.items.some(
+																(existing) =>
+																	normalizeTechName(existing) ===
+																	normalizeTechName(techName),
+															);
+															return (
+																<Button
+																	key={`${item.id}-${techName}`}
+																	type="button"
+																	variant={hasTech ? "secondary" : "outline"}
+																	size="sm"
+																	disabled={hasTech}
+																	className={hasTech ? "font-semibold opacity-100" : ""}
+																	onClick={() => addTechToCategory(item.id, techName)}
+																>
+																	{tech && <tech.Icon className={tech.className} />}
+																	{techName}
+																	{hasTech ? " (Selected)" : ""}
+																</Button>
+															);
+														})}
+													</div>
 												</div>
-											</div>
+											) : null}
 											{item.items.length > 0 && (
-												<div className="space-y-2 rounded-lg bg-background/70 p-3">
-													<div className="text-xs font-medium text-muted-foreground">
+												<div className="space-y-2 rounded-lg border border-border/50 bg-muted/20 p-3">
+													<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 														Selected tech (click to remove)
 													</div>
 													<div className="flex flex-wrap gap-2">
-														{item.items.map((techName, techIndex) => (
-															<Button
-																key={`${item.id}-${techName}-${techIndex}`}
-																type="button"
-																variant="ghost"
-																size="sm"
-																className="font-semibold"
-																onClick={() => removeTechFromCategory(item.id, techName)}
-															>
-																{techName}
-															</Button>
-														))}
+														{item.items.map((techName, techIndex) => {
+															const tech = getTechIcon(techName);
+															return (
+																<Button
+																	key={`${item.id}-${techName}-${techIndex}`}
+																	type="button"
+																	variant="ghost"
+																	size="sm"
+																	className="font-semibold"
+																	onClick={() => removeTechFromCategory(item.id, techName)}
+																>
+																	{tech ? (
+																		<tech.Icon className={tech.className} />
+																	) : (
+																		<span className="rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+																			No icon
+																		</span>
+																	)}
+																	{techName}
+																</Button>
+															);
+														})}
 													</div>
 												</div>
 											)}
-										</>
+										</div>
 									)}
 								</div>
 								);
@@ -2348,27 +3157,42 @@ export default function PortfolioEditorPage() {
 							<CardTitle>Projects</CardTitle>
 							<CardDescription>Showcase your strongest work.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-4">
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? { ...current, projects: [...current.projects, createProjectItem()] }
-											: current,
-									)
-								}
-							>
-								Add project
-							</Button>
-							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+						<CardContent className="space-y-4 border-t border-border/60 pt-4">
+							<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2">
+								<div className="text-xs text-muted-foreground">
+									Each card below is one project. Expand a card to edit project fields.
+								</div>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										openCreateModal(
+											{
+												kind: "project",
+												title: "Create Project",
+												description: "Add key project details before inserting it.",
+											},
+											{ name: "", description: "", url: "" },
+										)
+									}
+								>
+									Add project
+								</Button>
+							</div>
+							<div className="space-y-4">
 								{portfolio.projects.map((item, index) => {
 								const panelId = `project-${item.id}`;
 								const isOpen = openPanels[panelId] ?? index === 0;
 								return (
-								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+								<div
+									key={item.id}
+									className={`space-y-3 rounded-xl border p-4 transition-colors ${
+										isOpen
+											? "border-(--app-accent)/50 bg-(--app-accent)/[0.08] shadow-[inset_3px_0_0_var(--app-accent)]"
+											: "border-border/60 bg-muted/20"
+									}`}
+								>
 									<div className="flex items-center justify-between gap-2">
 										<div className="space-y-0.5">
 											<div className="text-xs font-medium text-muted-foreground">
@@ -2377,6 +3201,9 @@ export default function PortfolioEditorPage() {
 											<div className="text-sm font-medium">
 												{item.name || "Untitled project"}
 											</div>
+										</div>
+										<div className="rounded-md bg-muted/50 px-2 py-1 text-[11px] font-medium text-muted-foreground">
+											{isOpen ? "Editing" : "Collapsed"}
 										</div>
 										<div className="flex items-center gap-1">
 											<Button
@@ -2417,66 +3244,95 @@ export default function PortfolioEditorPage() {
 										</div>
 									</div>
 									{!isOpen ? (
-										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
-											{item.description?.trim() || item.url?.trim() || "No details yet."}
+										<div className="grid gap-2 rounded-lg border border-border/50 bg-background/70 p-3 text-sm text-muted-foreground sm:grid-cols-2">
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													Description
+												</div>
+												<div>{item.description?.trim() || "—"}</div>
+											</div>
+											<div className="space-y-0.5">
+												<div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+													URL
+												</div>
+												<div>{item.url?.trim() || "—"}</div>
+											</div>
 										</div>
 									) : (
-										<>
-											<Input
-												placeholder="Project name"
-												value={item.name}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	projects: current.projects.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, name: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-											<Input
-												placeholder="Short description"
-												value={item.description}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	projects: current.projects.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, description: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-											<Input
-												placeholder="Project URL"
-												value={item.url}
-												onChange={(event) =>
-													setPortfolio((current) =>
-														current
-															? {
-																	...current,
-																	projects: current.projects.map((entry) =>
-																		entry.id === item.id
-																			? { ...entry, url: event.target.value }
-																			: entry,
-																	),
-																}
-															: current,
-													)
-												}
-											/>
-										</>
+										<div className="space-y-3 rounded-lg border border-border/50 bg-background/70 p-3">
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Project name
+												</Label>
+												<Input
+													placeholder="Your Main Project"
+													value={item.name}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		projects: current.projects.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, name: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Short description
+												</Label>
+												<Input
+													placeholder="Describe a project you are proud of in one line."
+													value={item.description}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		projects: current.projects.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						description: event.target.value,
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Project URL
+												</Label>
+												<Input
+													placeholder="https://..."
+													value={item.url}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		projects: current.projects.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, url: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+										</div>
 									)}
 								</div>
 								);
@@ -2625,7 +3481,7 @@ export default function PortfolioEditorPage() {
 									dragConfig={{
 										enabled: true,
 										bounded: true,
-										handle: ".layout-drag-handle",
+										handle: ".layout-drag-surface",
 										cancel: ".layout-block-action",
 									}}
 									resizeConfig={{
@@ -2674,35 +3530,33 @@ export default function PortfolioEditorPage() {
 									{getLayoutOrder(portfolio).map((sectionKey) => (
 										<div
 											key={sectionKey}
-											className={`h-full overflow-hidden rounded-xl bg-background ${
+											className={`relative h-full ${
 												draggingSection === sectionKey ? "ring-2 ring-(--app-accent)" : ""
 											}`}
 										>
-											<div className="layout-drag-handle mb-2 flex cursor-move items-center justify-between gap-2 bg-muted/35 px-3 py-2">
-												<div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+											<div className="layout-block-action absolute right-2 top-2 z-10 flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-2 py-1 backdrop-blur">
+												<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
 													{SECTION_META[sectionKey].title}
 												</div>
-												<div className="flex items-center gap-2">
-													<div className="text-[11px] text-muted-foreground">
-														{getSectionSpan(portfolio, sectionKey)} / 12
-													</div>
-													<Button
-														type="button"
-														variant="ghost"
-														size="sm"
-														className="layout-block-action h-6 px-2 text-[11px]"
-														disabled={getLayoutOrder(portfolio).length <= 1}
-														onClick={() => removeSectionFromLayout(sectionKey)}
-													>
-														Remove
-													</Button>
+												<div className="text-[11px] text-muted-foreground">
+													{getSectionSpan(portfolio, sectionKey)} / 12
 												</div>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="layout-block-action h-6 px-2 text-[11px]"
+													disabled={getLayoutOrder(portfolio).length <= 1}
+													onClick={() => removeSectionFromLayout(sectionKey)}
+												>
+													Remove
+												</Button>
 											</div>
 											<div
 												ref={(node) => {
 													sectionContentRefs.current[sectionKey] = node;
 												}}
-												className="layout-scroll-content h-[calc(100%-44px)] min-w-0 max-w-full overflow-auto px-3 pb-3 [overflow-wrap:anywhere]"
+												className="layout-drag-surface layout-scroll-content app-card h-full min-w-0 max-w-full cursor-move overflow-auto p-2.5 sm:p-4 [overflow-wrap:anywhere]"
 											>
 												{getCanvasSectionContent(sectionKey, portfolio)}
 											</div>
@@ -2723,6 +3577,27 @@ export default function PortfolioEditorPage() {
 							</div>
 						</CardHeader>
 						<CardContent>{renderCustomSectionsEditor()}</CardContent>
+					</Card>
+
+					<Card className="shadow-none">
+						<CardHeader>
+							<CardTitle>GitHub heatmap</CardTitle>
+							<CardDescription>Configure the contributions section.</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-2 rounded-xl bg-muted/20 p-4">
+							<Label htmlFor="githubUsername">GitHub username</Label>
+							<Input
+								id="githubUsername"
+								value={String(portfolio.githubUsername ?? "")}
+								onChange={(event) =>
+									setBasicField("githubUsername", event.target.value)
+								}
+								placeholder="deuxlim"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Leave empty to hide the heatmap section.
+							</p>
+						</CardContent>
 					</Card>
 
 					<Card className="shadow-none">
@@ -2783,6 +3658,654 @@ export default function PortfolioEditorPage() {
 					</Card>
 				</TabsContent>
 				</Tabs>
+
+				{createModal ? (
+					<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4">
+						<Card className="w-full max-w-lg border-border/70 shadow-xl">
+							<CardHeader>
+								<CardTitle className="text-lg">{createModal.title}</CardTitle>
+								<CardDescription>{createModal.description}</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-3">
+								{createModal.kind === "header-action" ? (
+									<>
+										<div className="space-y-1">
+											<Label>Type</Label>
+											<select
+												className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+												value={createForm.type ?? "github"}
+												onChange={(event) => {
+													const nextType = event.target.value as HeaderActionType;
+													setCreateForm(getHeaderActionCreateDefaults(nextType));
+												}}
+											>
+												<option value="github">Github</option>
+												<option value="linkedin">LinkedIn</option>
+												<option value="email">Email</option>
+												<option value="phone">Phone</option>
+												<option value="link">Custom link</option>
+											</select>
+										</div>
+										<div className="space-y-1">
+											<Label>Value</Label>
+											<Input
+												value={createForm.value ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														value: event.target.value,
+													}))
+												}
+												placeholder={
+													createForm.type === "email"
+														? "name@example.com"
+														: createForm.type === "phone"
+															? "+63..."
+															: "https://..."
+												}
+											/>
+										</div>
+										<div className="space-y-1">
+											<Label>Display</Label>
+											<select
+												className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+												value={createForm.display ?? "label"}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														display: event.target.value,
+													}))
+												}
+											>
+												<option value="label">Use label</option>
+												<option value="value">Use actual value</option>
+											</select>
+										</div>
+										<div className="space-y-1">
+											<Label>Label</Label>
+											<Input
+												value={createForm.label ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														label: event.target.value,
+													}))
+												}
+												placeholder="Action label"
+											/>
+										</div>
+									</>
+								) : null}
+
+								{createModal.kind === "timeline" ? (
+									<>
+										<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+											<div className="space-y-1">
+												<Label>Year</Label>
+												<Input
+													value={createForm.year ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															year: event.target.value,
+														}))
+													}
+													placeholder="2026"
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label>Position</Label>
+												<Input
+													value={createForm.position ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															position: event.target.value,
+														}))
+													}
+													placeholder="Full Stack Developer"
+												/>
+											</div>
+										</div>
+										<div className="space-y-1">
+											<Label>Company</Label>
+											<Input
+												value={createForm.company ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														company: event.target.value,
+													}))
+												}
+												placeholder="Your Company"
+											/>
+										</div>
+										<div className="space-y-1">
+											<Label>Note</Label>
+											<Input
+												value={createForm.note ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														note: event.target.value,
+													}))
+												}
+												placeholder="Current role"
+											/>
+										</div>
+									</>
+								) : null}
+
+								{createModal.kind === "experience" ? (
+									<>
+										<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+											<div className="space-y-1">
+												<Label>Role</Label>
+												<Input
+													value={createForm.role ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															role: event.target.value,
+														}))
+													}
+													placeholder="Full Stack Developer"
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label>Company</Label>
+												<Input
+													value={createForm.company ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															company: event.target.value,
+														}))
+													}
+													placeholder="Your Company"
+												/>
+											</div>
+										</div>
+										<div className="space-y-1">
+											<Label>Period</Label>
+											<Input
+												value={createForm.period ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														period: event.target.value,
+													}))
+												}
+												placeholder="2024 — Present"
+											/>
+										</div>
+										<div className="space-y-1">
+											<Label>Highlights (one per line)</Label>
+											<Textarea
+												rows={4}
+												value={createForm.highlights ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														highlights: event.target.value,
+													}))
+												}
+												placeholder="Built feature X..."
+											/>
+										</div>
+									</>
+								) : null}
+
+								{createModal.kind === "tech-category" ? (
+									<>
+										<div className="space-y-1">
+											<Label>Category mode</Label>
+											<select
+												className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+												value={createForm.categoryMode ?? "preset"}
+												onChange={(event) =>
+													setCreateForm((current) => {
+														const nextMode = event.target.value;
+														if (nextMode !== "preset") {
+															return {
+																...current,
+																categoryMode: "custom",
+																presetKey: "",
+																name:
+																	findTechCategoryPresetKeyByName(current.name ?? "")
+																		? ""
+																		: current.name ?? "",
+															};
+														}
+														const fallbackPresetKey = "frontend";
+														const presetKey =
+															(current.presetKey as TechCategoryPresetKey) ||
+															fallbackPresetKey;
+														const preset = getTechCategoryPresetByKey(presetKey);
+														return {
+															...current,
+															categoryMode: "preset",
+															presetKey,
+															name: preset?.label ?? "Frontend",
+														};
+													})
+												}
+											>
+												<option value="preset">Use preset category</option>
+												<option value="custom">Custom category (manual)</option>
+											</select>
+										</div>
+										{(createForm.categoryMode ?? "preset") === "preset" ? (
+											<div className="space-y-1">
+												<Label>Preset category</Label>
+												<select
+													className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+													value={createForm.presetKey ?? "frontend"}
+													onChange={(event) =>
+														setCreateForm((current) => {
+															const presetKey = event.target.value as TechCategoryPresetKey;
+															const preset = getTechCategoryPresetByKey(presetKey);
+															return {
+																...current,
+																presetKey,
+																name: preset?.label ?? current.name ?? "",
+															};
+														})
+													}
+												>
+													{techCategoryPresets.map((preset) => (
+														<option key={`create-preset-${preset.key}`} value={preset.key}>
+															{preset.label}
+														</option>
+													))}
+												</select>
+											</div>
+										) : null}
+										<div className="space-y-1">
+											<Label>Category name</Label>
+											<Input
+												value={createForm.name ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														name: event.target.value,
+													}))
+												}
+												placeholder={
+													(createForm.categoryMode ?? "preset") === "preset"
+														? "Selected from preset"
+														: "Frontend"
+												}
+												disabled={(createForm.categoryMode ?? "preset") === "preset"}
+											/>
+										</div>
+										{(createForm.categoryMode ?? "preset") === "preset" ? (
+											<div className="space-y-2 rounded-lg border border-border/60 bg-muted/15 p-3">
+												<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Preset library
+												</div>
+												<div className="max-h-44 overflow-y-auto pr-1">
+													<div className="flex flex-wrap gap-2">
+														{(
+															getTechCategoryPresetByKey(
+																(createForm.presetKey as TechCategoryPresetKey) || "frontend",
+															)?.items ?? []
+														).map((techName) => {
+															const tech = getTechIcon(techName);
+															const hasTech = parseTechItems(
+																createForm.items ?? "",
+															).some(
+																(existing) =>
+																	normalizeTechName(existing) ===
+																	normalizeTechName(techName),
+															);
+															return (
+																<Button
+																	key={`create-preset-tech-${techName}`}
+																	type="button"
+																	variant={hasTech ? "secondary" : "outline"}
+																	size="sm"
+																	disabled={hasTech}
+																	className={hasTech ? "font-semibold opacity-100" : ""}
+																	onClick={() => addCreateFormTechItem(techName)}
+																>
+																	{tech && <tech.Icon className={tech.className} />}
+																	{techName}
+																	{hasTech ? " (Selected)" : ""}
+																</Button>
+															);
+														})}
+													</div>
+												</div>
+											</div>
+										) : null}
+										<div className="space-y-2 rounded-lg border border-border/60 bg-muted/15 p-3">
+											<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+												Add technology
+											</div>
+											<div className="flex gap-2">
+												<Input
+													list="create-tech-options"
+													placeholder="Type technology name"
+													value={createForm.techQuery ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															techQuery: event.target.value,
+														}))
+													}
+													onKeyDown={(event) => {
+														if (event.key === "Enter") {
+															event.preventDefault();
+															addCreateFormTechItem(createForm.techQuery ?? "");
+															setCreateForm((current) => ({
+																...current,
+																techQuery: "",
+															}));
+														}
+													}}
+												/>
+												<Button
+													type="button"
+													variant="outline"
+													onClick={() => {
+														addCreateFormTechItem(createForm.techQuery ?? "");
+														setCreateForm((current) => ({
+															...current,
+															techQuery: "",
+														}));
+													}}
+												>
+													Add
+												</Button>
+												<datalist id="create-tech-options">
+													{searchTechOptions(
+														createForm.techQuery ?? createForm.name ?? "",
+														25,
+													).map((option) => (
+														<option key={`create-tech-opt-${option}`} value={option} />
+													))}
+												</datalist>
+											</div>
+										</div>
+										{(createForm.categoryMode ?? "preset") !== "preset" ? (
+											<div className="space-y-2 rounded-lg border border-border/60 bg-muted/15 p-3">
+												<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													All technologies
+												</div>
+												<div className="max-h-44 overflow-y-auto pr-1">
+													<div className="flex flex-wrap gap-2">
+													{searchTechOptions("", 200).map(
+														(techName) => {
+															const tech = getTechIcon(techName);
+															const hasTech = parseTechItems(
+																createForm.items ?? "",
+															).some(
+																(existing) =>
+																	normalizeTechName(existing) ===
+																	normalizeTechName(techName),
+															);
+															return (
+																<Button
+																	key={`create-tech-${techName}`}
+																	type="button"
+																	variant={hasTech ? "secondary" : "outline"}
+																	size="sm"
+																	disabled={hasTech}
+																	className={hasTech ? "font-semibold opacity-100" : ""}
+																	onClick={() => addCreateFormTechItem(techName)}
+																>
+																	{tech && <tech.Icon className={tech.className} />}
+																	{techName}
+																	{hasTech ? " (Selected)" : ""}
+																</Button>
+															);
+														},
+													)}
+													</div>
+												</div>
+											</div>
+										) : null}
+										{parseTechItems(createForm.items ?? "").length > 0 ? (
+											<div className="space-y-2 rounded-lg border border-border/60 bg-background/80 p-3">
+												<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													Selected tech (click to remove)
+												</div>
+												<div className="flex flex-wrap gap-2">
+													{parseTechItems(createForm.items ?? "").map((techName) => {
+														const icon = getTechIcon(techName);
+														return (
+															<Button
+																key={`selected-create-tech-${techName}`}
+																type="button"
+																variant="ghost"
+																size="sm"
+																className="font-semibold"
+																onClick={() => removeCreateFormTechItem(techName)}
+															>
+																{icon ? (
+																	<icon.Icon className={icon.className} />
+																) : (
+																	<span className="rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">
+																		No icon
+																	</span>
+																)}
+																{techName}
+															</Button>
+														);
+													})}
+												</div>
+											</div>
+										) : null}
+									</>
+								) : null}
+
+								{createModal.kind === "project" ? (
+									<>
+										<div className="space-y-1">
+											<Label>Project name</Label>
+											<Input
+												value={createForm.name ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														name: event.target.value,
+													}))
+												}
+												placeholder="Your Main Project"
+											/>
+										</div>
+										<div className="space-y-1">
+											<Label>Description</Label>
+											<Input
+												value={createForm.description ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														description: event.target.value,
+													}))
+												}
+												placeholder="Short project description"
+											/>
+										</div>
+										<div className="space-y-1">
+											<Label>Project URL</Label>
+											<Input
+												value={createForm.url ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														url: event.target.value,
+													}))
+												}
+												placeholder="https://..."
+											/>
+										</div>
+									</>
+								) : null}
+
+								{createModal.kind === "custom-section" ? (
+									<>
+										<div className="space-y-1">
+											<Label>Section title</Label>
+											<Input
+												value={createForm.title ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														title: event.target.value,
+													}))
+												}
+												placeholder="Section title"
+											/>
+										</div>
+										{createModal.customSectionType === "text" ? (
+											<div className="space-y-1">
+												<Label>Body</Label>
+												<Textarea
+													rows={4}
+													value={createForm.body ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															body: event.target.value,
+														}))
+													}
+													placeholder="Write your text content..."
+												/>
+											</div>
+										) : null}
+										{createModal.customSectionType === "bullets" ? (
+											<div className="space-y-1">
+												<Label>Bullet items (one per line)</Label>
+												<Textarea
+													rows={4}
+													value={createForm.items ?? ""}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															items: event.target.value,
+														}))
+													}
+													placeholder={"First bullet\nSecond bullet"}
+												/>
+											</div>
+										) : null}
+										{createModal.customSectionType === "links" ? (
+											<>
+												<div className="space-y-1">
+													<Label>First link label</Label>
+													<Input
+														value={createForm.label ?? ""}
+														onChange={(event) =>
+															setCreateForm((current) => ({
+																...current,
+																label: event.target.value,
+															}))
+														}
+														placeholder="My blog"
+													/>
+												</div>
+												<div className="space-y-1">
+													<Label>First link URL</Label>
+													<Input
+														value={createForm.url ?? ""}
+														onChange={(event) =>
+															setCreateForm((current) => ({
+																...current,
+																url: event.target.value,
+															}))
+														}
+														placeholder="https://..."
+													/>
+												</div>
+											</>
+										) : null}
+									</>
+								) : null}
+
+								{createModal.kind === "custom-bullet" ? (
+									<div className="space-y-1">
+										<Label>Bullet text</Label>
+										<Input
+											value={createForm.bullet ?? ""}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													bullet: event.target.value,
+												}))
+											}
+											placeholder="Bullet item"
+										/>
+									</div>
+								) : null}
+
+								{createModal.kind === "custom-link" ? (
+									<>
+										<div className="space-y-1">
+											<Label>Link label</Label>
+											<Input
+												value={createForm.label ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														label: event.target.value,
+													}))
+												}
+												placeholder="Resource name"
+											/>
+										</div>
+										<div className="space-y-1">
+											<Label>Link URL</Label>
+											<Input
+												value={createForm.url ?? ""}
+												onChange={(event) =>
+													setCreateForm((current) => ({
+														...current,
+														url: event.target.value,
+													}))
+												}
+												placeholder="https://..."
+											/>
+										</div>
+									</>
+								) : null}
+
+								{createModal.kind === "tech-item" ? (
+									<div className="space-y-1">
+										<Label>Technology name</Label>
+										<Input
+											value={createForm.tech ?? ""}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													tech: event.target.value,
+												}))
+											}
+											placeholder="TypeScript"
+										/>
+									</div>
+								) : null}
+
+								<div className="flex justify-end gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => {
+											setCreateModal(null);
+											setCreateForm({});
+										}}
+									>
+										Cancel
+									</Button>
+									<Button type="button" onClick={submitCreateModal}>
+										Create
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				) : null}
 
 				{previewOpen && (
 					<div className="fixed inset-0 z-50 bg-black/60 p-3 sm:p-6">
@@ -2888,6 +4411,62 @@ export default function PortfolioEditorPage() {
 						</Card>
 					</div>
 				) : null}
+
+				{isHeaderActionsEditorOpen && (
+					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">
+						<div className="w-full max-w-6xl overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
+							<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
+								<div>
+									<div className="text-base font-semibold">Header Actions</div>
+									<div className="text-xs text-muted-foreground">
+										Configure how header chips look and behave.
+									</div>
+								</div>
+								<div className="flex items-center gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											openCreateModal(
+												{
+													kind: "header-action",
+													title: "Create Header Action",
+													description: "Add a new clickable chip in your header.",
+												},
+												getHeaderActionCreateDefaults("github"),
+											)
+										}
+										disabled={portfolio.headerActions.length >= MAX_HEADER_ACTIONS}
+									>
+										Add action
+									</Button>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => setIsHeaderActionsEditorOpen(false)}
+									>
+										<X className="size-4" />
+									</Button>
+								</div>
+							</div>
+							<div className="max-h-[78vh] overflow-y-auto px-4 py-4 sm:px-5">
+								{renderHeaderActionsEditor()}
+							</div>
+							<div className="flex justify-end border-t px-4 py-3 sm:px-5">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setIsHeaderActionsEditorOpen(false)}
+								>
+									Done
+								</Button>
+							</div>
+						</div>
+					</div>
+				)}
 
 				{isCustomSectionEditorOpen && (
 					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">

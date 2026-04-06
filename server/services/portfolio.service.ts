@@ -33,6 +33,7 @@ type PortfolioQueryRow = RowDataPacket & {
 	github_url: string;
 	github_username: string;
 	linkedin_url: string;
+	header_actions_json: string | null;
 	about_json: string | null;
 	timeline_json: string | null;
 	experiences_json: string | null;
@@ -66,6 +67,7 @@ type UserRow = RowDataPacket & {
 let versionsTableReady: Promise<void> | null = null;
 let portfoliosLayoutColumnReady: Promise<void> | null = null;
 let portfoliosPublicSlugColumnReady: Promise<void> | null = null;
+let portfoliosHeaderActionsColumnReady: Promise<void> | null = null;
 
 const RESERVED_PUBLIC_SLUGS = new Set([
 	"api",
@@ -179,6 +181,36 @@ const ensurePortfoliosLayoutColumn = async () => {
 	})();
 
 	await portfoliosLayoutColumnReady;
+};
+
+const ensurePortfoliosHeaderActionsColumn = async () => {
+	if (portfoliosHeaderActionsColumnReady) {
+		await portfoliosHeaderActionsColumnReady;
+		return;
+	}
+
+	const db = getDb();
+	portfoliosHeaderActionsColumnReady = (async () => {
+		const [rows] = await db.query<RowDataPacket[]>(
+			`
+				SELECT COUNT(*) AS total
+				FROM information_schema.COLUMNS
+				WHERE TABLE_SCHEMA = DATABASE()
+					AND TABLE_NAME = 'portfolios'
+					AND COLUMN_NAME = 'header_actions_json'
+			`,
+		);
+		const exists = Number(rows[0]?.total ?? 0) > 0;
+		if (exists) return;
+		await db.query(
+			`
+				ALTER TABLE portfolios
+				ADD COLUMN header_actions_json JSON NULL AFTER linkedin_url
+			`,
+		);
+	})();
+
+	await portfoliosHeaderActionsColumnReady;
 };
 
 const ensurePortfolioVersionsTable = async () => {
@@ -410,6 +442,7 @@ const buildBlankPortfolio = (user: UserRow): EditablePortfolio => {
 		githubUrl: "",
 		githubUsername: "",
 		linkedinUrl: "",
+		headerActions: starter.headerActions,
 		about: [],
 		timeline: [],
 		experiences: [],
@@ -455,6 +488,7 @@ export const getPortfolioByUsername = async (
 ): Promise<PublicPortfolio | null> => {
 	await ensurePortfoliosLayoutColumn();
 	await ensurePortfoliosPublicSlugColumn();
+	await ensurePortfoliosHeaderActionsColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioQueryRow[]>(
 		`
@@ -474,6 +508,7 @@ export const getPortfolioByUsername = async (
 				p.github_url,
 				p.github_username,
 				p.linkedin_url,
+				p.header_actions_json,
 				p.about_json,
 				p.timeline_json,
 				p.experiences_json,
@@ -519,6 +554,7 @@ export const getEditablePortfolioByUserId = async (
 ): Promise<EditablePortfolio | null> => {
 	await ensurePortfoliosLayoutColumn();
 	await ensurePortfoliosPublicSlugColumn();
+	await ensurePortfoliosHeaderActionsColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioQueryRow[]>(
 		`
@@ -538,6 +574,7 @@ export const getEditablePortfolioByUserId = async (
 				p.github_url,
 				p.github_username,
 				p.linkedin_url,
+				p.header_actions_json,
 				p.about_json,
 				p.timeline_json,
 				p.experiences_json,
@@ -595,6 +632,7 @@ const applyPortfolioUpdateByUserId = async (
 ) => {
 	await ensurePortfoliosLayoutColumn();
 	await ensurePortfoliosPublicSlugColumn();
+	await ensurePortfoliosHeaderActionsColumn();
 	const db = getDb();
 	const serialized = serializePortfolio(portfolio);
 
@@ -614,6 +652,7 @@ const applyPortfolioUpdateByUserId = async (
 				github_url = ?,
 				github_username = ?,
 				linkedin_url = ?,
+				header_actions_json = ?,
 				about_json = ?,
 				timeline_json = ?,
 				experiences_json = ?,
@@ -639,6 +678,7 @@ const applyPortfolioUpdateByUserId = async (
 			serialized.githubUrl,
 			serialized.githubUsername,
 			serialized.linkedinUrl,
+			serialized.headerActionsJson,
 			serialized.aboutJson,
 			serialized.timelineJson,
 			serialized.experiencesJson,
@@ -710,10 +750,15 @@ export const listPortfolioVersionsByUserId = async (
 
 export const createPortfolioVersionByUserId = async (
 	userId: number,
-	input?: { name?: string; base?: PortfolioVersionBase },
+	input?: {
+		name?: string;
+		base?: PortfolioVersionBase;
+		portfolio?: EditablePortfolio;
+	},
 ): Promise<PortfolioVersionSummary | "duplicate_snapshot" | null> => {
 	const base = input?.base ?? "latest";
-	const sourcePortfolio = await resolveVersionBasePortfolioByUserId(userId, base);
+	const sourcePortfolio =
+		input?.portfolio ?? (await resolveVersionBasePortfolioByUserId(userId, base));
 	if (!sourcePortfolio) return null;
 	const livePortfolio = await getEditablePortfolioByUserId(userId);
 	if (!livePortfolio) return null;
@@ -936,6 +981,7 @@ export const updatePortfolioVersionSnapshotByUserId = async (
 export const createStarterPortfolio = async (user: SessionUser) => {
 	await ensurePortfoliosLayoutColumn();
 	await ensurePortfoliosPublicSlugColumn();
+	await ensurePortfoliosHeaderActionsColumn();
 	const db = getDb();
 	const starter = buildStarterPortfolio(user.username, user.email, user.fullName);
 	const serialized = serializePortfolio(starter);
@@ -957,6 +1003,7 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 				github_url,
 				github_username,
 				linkedin_url,
+				header_actions_json,
 				about_json,
 				timeline_json,
 				experiences_json,
@@ -967,7 +1014,7 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 				chat_enabled,
 				gemini_api_key
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 		[
 			user.id,
@@ -984,6 +1031,7 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 			serialized.githubUrl,
 			serialized.githubUsername,
 			serialized.linkedinUrl,
+			serialized.headerActionsJson,
 			serialized.aboutJson,
 			serialized.timelineJson,
 			serialized.experiencesJson,

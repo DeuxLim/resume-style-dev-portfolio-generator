@@ -19,6 +19,7 @@ type ChatPortfolioRow = RowDataPacket & {
 	github_url: string;
 	github_username: string;
 	linkedin_url: string;
+	header_actions_json: string | null;
 	about_json: string | null;
 	timeline_json: string | null;
 	experiences_json: string | null;
@@ -49,6 +50,7 @@ const getChatPortfolio = async (username: string) => {
 				p.github_url,
 				p.github_username,
 				p.linkedin_url,
+				p.header_actions_json,
 				p.about_json,
 				p.timeline_json,
 				p.experiences_json,

@@ -22,7 +22,10 @@ import type {
 	TimelineItem,
 } from "../../shared/types/portfolio.types.js";
 import type { ResumeRecord } from "../../shared/types/resume.types.js";
-import { defaultPortfolioLayout } from "../../shared/defaults/portfolio.js";
+import {
+	buildDefaultHeaderActions,
+	defaultPortfolioLayout,
+} from "../../shared/defaults/portfolio.js";
 import { defaultResumeLayout } from "../../shared/defaults/resume.js";
 import { validateResume } from "../../shared/lib/resume.js";
 
@@ -148,6 +151,12 @@ const buildSamplePortfolio = (user: {
 		githubUrl: "https://github.com/averykim-dev",
 		githubUsername: "averykim-dev",
 		linkedinUrl: "https://www.linkedin.com/in/avery-kim-dev/",
+		headerActions: buildDefaultHeaderActions({
+			githubUrl: "https://github.com/averykim-dev",
+			linkedinUrl: "https://www.linkedin.com/in/avery-kim-dev/",
+			email: user.email,
+			phone: "+1 (206) 555-0198",
+		}),
 		about: [
 			"I lead cross-functional product engineering from concept to production, balancing speed with maintainability. My default approach is to reduce complexity first: clear domain boundaries, explicit contracts, and observability baked in from day one.",
 			"I have built and modernized large-scale systems across Laravel, React, Node.js, and MySQL/Postgres ecosystems, including ticketing platforms, customer portals, automation workflows, and high-volume API integrations. I consistently focus on measurable outcomes: faster cycle time, lower incident rates, and better customer retention.",

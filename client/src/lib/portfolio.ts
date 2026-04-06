@@ -2,6 +2,7 @@ import type {
 	CustomSection,
 	EditablePortfolio,
 	ExperienceItem,
+	HeaderAction,
 	ProjectItem,
 	TechCategory,
 	TimelineItem,
@@ -51,6 +52,14 @@ export const createCustomSection = (): CustomSection => ({
 	links: [{ id: makeId(), label: "", url: "" }],
 });
 
+export const createHeaderAction = (): HeaderAction => ({
+	id: makeId(),
+	label: "",
+	type: "link",
+	value: "",
+	display: "label",
+});
+
 export const cloneEditablePortfolio = (
 	portfolio: EditablePortfolio,
 ): EditablePortfolio => ({
@@ -89,6 +98,12 @@ export const cloneEditablePortfolio = (
 			? item.links.map((link) => ({ ...link }))
 			: [],
 	})),
+	headerActions: Array.isArray(portfolio.headerActions)
+		? portfolio.headerActions.map((action) => ({
+				...action,
+				display: action.display === "value" ? "value" : "label",
+			}))
+		: [],
 });
 
 export const ensureHref = (value: string) => {
