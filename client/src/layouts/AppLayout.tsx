@@ -296,8 +296,8 @@ export default function AppLayout() {
 								<Link
 									to="/"
 									className={cn(
-										"text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground",
-										isHomeActive && "text-foreground",
+										buttonVariants({ size: "sm", variant: "ghost" }),
+										isHomeActive && navActiveClass,
 									)}
 								>
 									Home
@@ -305,8 +305,8 @@ export default function AppLayout() {
 								<Link
 									to="/sample"
 									className={cn(
-										"text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground",
-										isSampleActive && "text-foreground",
+										buttonVariants({ size: "sm", variant: "ghost" }),
+										isSampleActive && navActiveClass,
 									)}
 								>
 									Sample output
@@ -314,24 +314,21 @@ export default function AppLayout() {
 								<Link
 									to="/guide"
 									className={cn(
-										"text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground",
-										isGuideActive && "text-foreground",
+										buttonVariants({ size: "sm", variant: "ghost" }),
+										isGuideActive && navActiveClass,
 									)}
 								>
 									User guide
 								</Link>
 								<Link
 									to="/login"
-									className="text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground"
+									className={cn(buttonVariants({ size: "sm", variant: "ghost" }))}
 								>
 									Log in
 								</Link>
 								<Link
 									to="/signup"
-									className={cn(
-										buttonVariants({ size: "sm" }),
-										"rounded-2xl px-4 text-[1.02rem] font-semibold",
-									)}
+									className={cn(buttonVariants({ size: "sm" }))}
 								>
 									Create account
 								</Link>
