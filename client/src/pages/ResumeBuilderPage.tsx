@@ -35,21 +35,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import { toast } from "sonner";
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
 	ArrowDown,
 	ArrowUp,
 	Download,
@@ -105,6 +90,10 @@ export default function ResumeBuilderPage() {
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
 	const [resume, setResume] = useState<ResumeRecord | null>(null);
+	const [toast, setToast] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 	const [activeTab, setActiveTab] = useState("content");
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -118,13 +107,12 @@ export default function ResumeBuilderPage() {
 		minWidth: 768,
 		defaultWidth: 220,
 	});
-	const setToast = ({ type, message }: { type: "success" | "error"; message: string }) => {
-		if (type === "error") {
-			toast.error(message);
-			return;
-		}
-		toast.success(message);
-	};
+
+	useEffect(() => {
+		if (!toast) return;
+		const timeoutId = window.setTimeout(() => setToast(null), 2400);
+		return () => window.clearTimeout(timeoutId);
+	}, [toast]);
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -273,7 +261,7 @@ export default function ResumeBuilderPage() {
 
 	const pdfDownloadHref = `${apiBaseUrl}/resumes/me/pdf?download=1`;
 	const pdfInlineHref = `${apiBaseUrl}/resumes/me/pdf?ts=${encodeURIComponent(
-		resume.updatedAt ?? "latest",
+		resume.updatedAt ?? String(Date.now()),
 	)}`;
 	const visibleSectionOrder = resume.layout.sectionOrder.filter((section) =>
 		section === "header" ? true : Boolean(resume.layout.visibility[section]),
@@ -365,6 +353,19 @@ export default function ResumeBuilderPage() {
 
 	return (
 		<main className="space-y-5 pb-10">
+			{toast ? (
+				<div className="fixed right-4 top-4 z-50">
+					<div
+						className={
+							toast.type === "error"
+								? "rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 shadow-lg"
+								: "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
+						}
+					>
+						{toast.message}
+					</div>
+				</div>
+			) : null}
 			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
 				<CardHeader className="gap-3">
 					<div className="space-y-2">
@@ -436,15 +437,17 @@ export default function ResumeBuilderPage() {
 							>
 								PDF Template
 							</Label>
-							<Select
+							<select
+								id="resume-template-key"
+								className="h-9 w-full rounded-lg border border-border/70 bg-background/80 px-3 text-sm"
 								value={resume.templateKey}
-								onValueChange={(value) =>
+								onChange={(event) =>
 									setResume((current) =>
 										current
 											? {
 													...current,
 													templateKey:
-														value === "harvard_classic_v1"
+														event.target.value === "harvard_classic_v1"
 															? "harvard_classic_v1"
 															: "ats_classic_v1",
 											  }
@@ -452,19 +455,12 @@ export default function ResumeBuilderPage() {
 									)
 								}
 							>
-								<SelectTrigger id="resume-template-key" className="h-9 w-full bg-background/80">
-									<SelectValue placeholder="Select template" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										{resumeTemplateOptions.map((option) => (
-											<SelectItem key={option.key} value={option.key}>
-												{option.label}
-											</SelectItem>
-										))}
-									</SelectGroup>
-								</SelectContent>
-							</Select>
+								{resumeTemplateOptions.map((option) => (
+									<option key={option.key} value={option.key}>
+										{option.label}
+									</option>
+								))}
+							</select>
 						</div>
 					</div>
 				</CardContent>
@@ -1394,12 +1390,7 @@ export default function ResumeBuilderPage() {
 			</Tabs>
 
 			{previewOpen ? (
-				<Dialog open onOpenChange={(open) => !open && setPreviewOpen(false)}>
-					<DialogContent className="max-w-6xl p-0" showCloseButton={false}>
-						<DialogTitle className="sr-only">Quick preview</DialogTitle>
-						<DialogDescription className="sr-only">
-							Resume quick preview dialog
-						</DialogDescription>
+				<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
 					<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:rounded-xl">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 							<div>
@@ -1427,17 +1418,11 @@ export default function ResumeBuilderPage() {
 							</div>
 						</div>
 					</div>
-					</DialogContent>
-				</Dialog>
+				</div>
 			) : null}
 
 			{shortcutsOpen ? (
-				<Dialog open onOpenChange={(open) => !open && setShortcutsOpen(false)}>
-					<DialogContent className="max-w-md p-0" showCloseButton={false}>
-						<DialogTitle className="sr-only">Keyboard shortcuts</DialogTitle>
-						<DialogDescription className="sr-only">
-							Resume builder shortcuts
-						</DialogDescription>
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
 					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Keyboard shortcuts</CardTitle>
@@ -1463,17 +1448,11 @@ export default function ResumeBuilderPage() {
 							</div>
 						</CardContent>
 					</Card>
-					</DialogContent>
-				</Dialog>
+				</div>
 			) : null}
 
 			{resetLayoutDialogOpen ? (
-				<Dialog open onOpenChange={(open) => !open && setResetLayoutDialogOpen(false)}>
-					<DialogContent className="max-w-md p-0" showCloseButton={false}>
-						<DialogTitle className="sr-only">Reset section layout</DialogTitle>
-						<DialogDescription className="sr-only">
-							Reset layout confirmation
-						</DialogDescription>
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
 					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Reset section layout?</CardTitle>
@@ -1503,8 +1482,7 @@ export default function ResumeBuilderPage() {
 							</div>
 						</CardContent>
 					</Card>
-					</DialogContent>
-				</Dialog>
+				</div>
 			) : null}
 		</main>
 	);

@@ -20,15 +20,8 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Circle, Download, Eye, FileText, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 
 const versionBaseOptions: Array<{
 	value: PortfolioVersionBase;
@@ -58,6 +51,10 @@ export default function DashboardPage() {
 	const hasCreateVersionQueryParam = searchParams.get("newVersion") === "1";
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const [toast, setToast] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 	const [versionToDelete, setVersionToDelete] = useState<{
 		id: number;
 		name: string;
@@ -85,13 +82,6 @@ export default function DashboardPage() {
 		"idle",
 	);
 	const [publicSlugInput, setPublicSlugInput] = useState("");
-	const setToast = ({ type, message }: { type: "success" | "error"; message: string }) => {
-		if (type === "error") {
-			toast.error(message);
-			return;
-		}
-		toast.success(message);
-	};
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -106,6 +96,12 @@ export default function DashboardPage() {
 		}, 2000);
 		return () => window.clearTimeout(timeoutId);
 	}, [copyStatus]);
+
+	useEffect(() => {
+		if (!toast) return;
+		const timeoutId = setTimeout(() => setToast(null), 2400);
+		return () => clearTimeout(timeoutId);
+	}, [toast]);
 
 	useEffect(() => {
 		if (!hasCreateVersionQueryParam) return;
@@ -263,7 +259,6 @@ export default function DashboardPage() {
 
 	useEffect(() => {
 		if (!portfolioQuery.data?.username) return;
-		// eslint-disable-next-line react-hooks/set-state-in-effect
 		setPublicSlugInput(portfolioQuery.data.username);
 	}, [portfolioQuery.data?.username]);
 
@@ -313,6 +308,20 @@ export default function DashboardPage() {
 
 	return (
 		<main className="space-y-5">
+			{toast ? (
+				<div className="fixed right-4 top-4 z-50">
+					<div
+						className={
+							toast.type === "error"
+								? "rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 shadow-lg"
+								: "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
+						}
+					>
+						{toast.message}
+					</div>
+				</div>
+			) : null}
+
 			<section className="grid grid-cols-1 gap-4">
 				<Card className="border-border/70 shadow-none">
 					<CardHeader>
@@ -623,12 +632,7 @@ export default function DashboardPage() {
 			</Card>
 
 			{versionToDelete ? (
-				<Dialog open onOpenChange={(open) => !open && setVersionToDelete(null)}>
-					<DialogContent className="max-w-md p-0" showCloseButton={false}>
-						<DialogTitle className="sr-only">Delete version</DialogTitle>
-						<DialogDescription className="sr-only">
-							Delete version confirmation
-						</DialogDescription>
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
 					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Delete version?</CardTitle>
@@ -657,17 +661,11 @@ export default function DashboardPage() {
 							</div>
 						</CardContent>
 					</Card>
-					</DialogContent>
-				</Dialog>
+				</div>
 			) : null}
 
 			{versionToRename ? (
-				<Dialog open onOpenChange={(open) => !open && setVersionToRename(null)}>
-					<DialogContent className="max-w-md p-0" showCloseButton={false}>
-						<DialogTitle className="sr-only">Rename version</DialogTitle>
-						<DialogDescription className="sr-only">
-							Rename version dialog
-						</DialogDescription>
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
 					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Rename version</CardTitle>
@@ -714,17 +712,11 @@ export default function DashboardPage() {
 							</div>
 						</CardContent>
 					</Card>
-					</DialogContent>
-				</Dialog>
+				</div>
 			) : null}
 
 			{versionToCreate ? (
-				<Dialog open onOpenChange={(open) => !open && setVersionToCreate(null)}>
-					<DialogContent className="max-w-lg p-0" showCloseButton={false}>
-						<DialogTitle className="sr-only">Create new version</DialogTitle>
-						<DialogDescription className="sr-only">
-							Create version dialog
-						</DialogDescription>
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
 					<Card className="flex max-h-[85vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Create new version</CardTitle>
@@ -752,15 +744,14 @@ export default function DashboardPage() {
 								<div className="text-sm font-medium">Base this version on</div>
 								<div className="space-y-2">
 									{versionBaseOptions.map((option) => (
-										<Button
+										<button
 											key={option.value}
 											type="button"
-											variant="outline"
 											className={cn(
-												"h-auto w-full justify-start rounded-lg px-3 py-2 text-left",
+												"w-full rounded-lg border px-3 py-2 text-left transition-colors",
 												versionToCreate.base === option.value
 													? "border-emerald-500/50 bg-emerald-500/10"
-													: "hover:bg-muted/40",
+													: "border-border hover:bg-muted/40",
 											)}
 											onClick={() =>
 												setVersionToCreate((current) =>
@@ -770,7 +761,7 @@ export default function DashboardPage() {
 										>
 											<div className="text-sm font-medium">{option.label}</div>
 											<div className="text-xs text-muted-foreground">{option.description}</div>
-										</Button>
+										</button>
 									))}
 								</div>
 							</div>
@@ -796,8 +787,7 @@ export default function DashboardPage() {
 							</div>
 						</CardContent>
 					</Card>
-					</DialogContent>
-				</Dialog>
+				</div>
 			) : null}
 		</main>
 	);

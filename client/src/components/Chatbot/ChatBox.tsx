@@ -9,8 +9,6 @@ import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
 import ReactMarkdown from "react-markdown";
 import { getAvatarUrl } from "@/lib/assets";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 export default function ChatBox({
 	username,
@@ -72,16 +70,14 @@ export default function ChatBox({
 						</div>
 						<div className="flex-1 font-medium">{displayName}</div>
 						<div className="flex gap-2 items-center justify-center">
-							<Button
+							<button
 								type="button"
-								variant="ghost"
-								size="icon-sm"
 								aria-label="Minimize chat"
 								onClick={() => setIsChatOpen(false)}
-								className="text-(--app-muted) hover:text-(--app-text)"
+								className="text-xl cursor-pointer text-(--app-muted) hover:text-(--app-text) transition-colors"
 							>
 								<FaMinus />
-							</Button>
+							</button>
 						</div>
 					</div>
 				</div>
@@ -149,26 +145,24 @@ export default function ChatBox({
 
 				{/* Input */}
 				<div className="h-16 flex items-center justify-around gap-3 px-4 border-t border-(--app-border)">
-					<Input
+					<input
 						type="text"
 						placeholder="Aa"
 						value={input}
-						className="h-9 flex-1 rounded-none border-(--app-border) bg-(--app-surface-2) px-4 text-[13px] sm:text-sm"
+						className="bg-(--app-surface-2) border border-(--app-border) rounded-none px-4 h-9 flex-1 text-[13px] sm:text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent)"
 						onChange={(e) => setInput(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") handleSend();
 						}}
 					/>
-					<Button
+					<button
 						type="button"
-						variant="ghost"
-						size="icon"
-						className="rounded-none hover:bg-(--app-surface-2)"
+						className="p-2 cursor-pointer hover:bg-(--app-surface-2) rounded-none disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
 						onClick={handleSend}
 						disabled={!input.trim()}
 					>
 						<HiMiniPaperAirplane className="text-2xl text-(--app-accent)" />
-					</Button>
+					</button>
 				</div>
 			</div>
 		</motion.div>
