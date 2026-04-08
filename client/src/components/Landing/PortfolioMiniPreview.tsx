@@ -2,8 +2,8 @@ import PortfolioView from "@/components/portfolio/PortfolioView";
 import { samplePortfolio } from "../../../../shared/defaults/portfolio";
 
 export default function PortfolioMiniPreview({ large = false }: { large?: boolean }) {
-	const viewportClass = large ? "h-[30rem] sm:h-[36rem]" : "h-72";
-	const scaleClass = large ? "scale-[0.42] sm:scale-[0.5]" : "scale-[0.3] sm:scale-[0.34]";
+	const viewportClass = large ? "h-[20rem] sm:h-[36rem]" : "h-56 sm:h-72";
+	const scaleClass = large ? "scale-[0.34] sm:scale-[0.5]" : "scale-[0.24] sm:scale-[0.34]";
 
 	return (
 		<div className="overflow-hidden rounded-xl border bg-background/95">

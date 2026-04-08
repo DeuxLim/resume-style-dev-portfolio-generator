@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ThemeToggleButton from "@/components/ThemeToggleButton";
 import { useSession } from "@/hooks/useSession";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Menu, X } from "lucide-react";
 
 type OpenMenu = "portfolio" | "resume" | null;
@@ -86,16 +87,13 @@ export default function AppLayout() {
 
 			<div className="relative mx-auto max-w-6xl px-3 pt-3 pb-8 sm:px-4 sm:pt-5 sm:pb-10 md:pt-6">
 				<header className="mb-5 rounded-2xl bg-background/70 p-3 sm:p-4 backdrop-blur supports-[backdrop-filter]:bg-background/55">
-					<div className="flex items-center gap-2 sm:gap-3">
+					<div className="flex items-center gap-2 sm:hidden">
 						<Link
 							to="/"
 							className="inline-flex min-w-0 flex-1 items-center rounded-md bg-muted/35 px-3 py-2 text-[11px] font-semibold tracking-[0.08em] text-foreground/90 transition-colors hover:bg-muted/55 sm:text-xs"
 						>
 							<span className="truncate">Resume-style Web Dev Portfolio Generator</span>
 						</Link>
-						<div className="sm:hidden">
-							<ThemeToggleButton />
-						</div>
 						<button
 							type="button"
 							className={cn(
@@ -110,9 +108,15 @@ export default function AppLayout() {
 						</button>
 					</div>
 
-					<div className="mt-3 hidden items-center justify-between gap-2 sm:flex">
+					<div className="hidden items-center gap-3 sm:flex">
+						<Link
+							to="/"
+							className="inline-flex min-w-0 shrink-0 items-center rounded-md bg-muted/35 px-3 py-2 text-[11px] font-semibold tracking-[0.08em] text-foreground/90 transition-colors hover:bg-muted/55 sm:max-w-[20rem] sm:text-xs lg:max-w-none"
+						>
+							<span className="truncate">Resume-style Web Dev Portfolio Generator</span>
+						</Link>
 						{isAuthed ? (
-							<div ref={navMenusRef} className="flex flex-wrap items-center gap-1.5">
+							<div ref={navMenusRef} className="flex min-w-0 flex-1 items-center gap-1.5">
 								<Link
 									to="/dashboard"
 									className={cn(
@@ -292,7 +296,7 @@ export default function AppLayout() {
 								</button>
 							</div>
 						) : (
-							<div className="flex flex-wrap items-center gap-6 px-1">
+							<div className="flex min-w-0 flex-1 items-center gap-2 px-1 lg:gap-4">
 								<Link
 									to="/"
 									className={cn(
@@ -334,175 +338,209 @@ export default function AppLayout() {
 								</Link>
 							</div>
 						)}
-						<ThemeToggleButton />
+						<div className="shrink-0">
+							<ThemeToggleButton />
+						</div>
 					</div>
 
-					{mobileNavOpen ? (
-						<div className="mt-3 space-y-2 rounded-xl border border-border/80 bg-background/90 p-2 sm:hidden">
-							{isAuthed ? (
-								<>
-									<Link
-										to="/dashboard"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isDashboardActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Dashboard
-									</Link>
-									<Link
-										to="/guide"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isGuideActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										User guide
-									</Link>
-									<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-										Portfolio
+					<Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+						<SheetContent side="right" className="w-[88vw] max-w-sm p-0 sm:hidden">
+							<SheetHeader>
+								<SheetTitle className="sr-only">Navigation menu</SheetTitle>
+							</SheetHeader>
+							<div className="flex flex-col gap-2 px-4 pb-4">
+								<div className="flex items-center justify-between pb-1">
+									<div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+										Menu
 									</div>
-									<Link
-										to="/dashboard/edit"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isEditorActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Edit portfolio
-									</Link>
-									<Link
-										to="/dashboard?newVersion=1"
-										className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										New version
-									</Link>
-									{publicPortfolioPath ? (
+									<ThemeToggleButton />
+								</div>
+								{isAuthed ? (
+									<>
 										<Link
-											to={publicPortfolioPath}
-											target="_blank"
-											rel="noopener noreferrer"
-											className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
+											to="/dashboard"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isDashboardActive && navActiveClass,
+											)}
 											onClick={() => setMobileNavOpen(false)}
 										>
-											My portfolio
+											Dashboard
 										</Link>
-									) : null}
-									<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-										Resume
-									</div>
-									<Link
-										to="/dashboard/resume"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isResumeBuilderActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Open resume builder
-									</Link>
-									<a
-										href={resumePdfHref}
-										target="_blank"
-										rel="noopener noreferrer"
-										className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Preview PDF
-									</a>
-									<a
-										href={resumePdfDownloadHref}
-										target="_blank"
-										rel="noopener noreferrer"
-										className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Download PDF
-									</a>
-									{publicResumePdfHref ? (
-										<a
-											href={publicResumePdfHref}
-											target="_blank"
-											rel="noopener noreferrer"
-											className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
+										<Link
+											to="/guide"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isGuideActive && navActiveClass,
+											)}
 											onClick={() => setMobileNavOpen(false)}
 										>
-											Public resume PDF
+											User guide
+										</Link>
+										<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+											Portfolio
+										</div>
+										<Link
+											to="/dashboard/edit"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isEditorActive && navActiveClass,
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Edit portfolio
+										</Link>
+										<Link
+											to="/dashboard?newVersion=1"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											New version
+										</Link>
+										{publicPortfolioPath ? (
+											<Link
+												to={publicPortfolioPath}
+												target="_blank"
+												rel="noopener noreferrer"
+												className={cn(
+													buttonVariants({ size: "sm", variant: "ghost" }),
+													"w-full justify-start",
+												)}
+												onClick={() => setMobileNavOpen(false)}
+											>
+												My portfolio
+											</Link>
+										) : null}
+										<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+											Resume
+										</div>
+										<Link
+											to="/dashboard/resume"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isResumeBuilderActive && navActiveClass,
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Open resume builder
+										</Link>
+										<a
+											href={resumePdfHref}
+											target="_blank"
+											rel="noopener noreferrer"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Preview PDF
 										</a>
-									) : null}
-									<button
-										type="button"
-										className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
-										onClick={() => {
-											setMobileNavOpen(false);
-											logoutMutation.mutate();
-										}}
-										disabled={logoutMutation.isPending}
-									>
-										{logoutMutation.isPending ? "Logging out..." : "Log out"}
-									</button>
-								</>
-							) : (
-								<>
-									<Link
-										to="/"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isHomeActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Home
-									</Link>
-									<Link
-										to="/sample"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isSampleActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Sample output
-									</Link>
-									<Link
-										to="/guide"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"w-full justify-start",
-											isGuideActive && navActiveClass,
-										)}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										User guide
-									</Link>
-									<Link
-										to="/login"
-										className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "w-full justify-start")}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Log in
-									</Link>
-									<Link
-										to="/signup"
-										className={cn(buttonVariants({ size: "sm" }), "w-full justify-start")}
-										onClick={() => setMobileNavOpen(false)}
-									>
-										Create account
-									</Link>
-								</>
-							)}
-						</div>
-					) : null}
+										<a
+											href={resumePdfDownloadHref}
+											target="_blank"
+											rel="noopener noreferrer"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Download PDF
+										</a>
+										{publicResumePdfHref ? (
+											<a
+												href={publicResumePdfHref}
+												target="_blank"
+												rel="noopener noreferrer"
+												className={cn(
+													buttonVariants({ size: "sm", variant: "ghost" }),
+													"w-full justify-start",
+												)}
+												onClick={() => setMobileNavOpen(false)}
+											>
+												Public resume PDF
+											</a>
+										) : null}
+										<button
+											type="button"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+											)}
+											onClick={() => {
+												setMobileNavOpen(false);
+												logoutMutation.mutate();
+											}}
+											disabled={logoutMutation.isPending}
+										>
+											{logoutMutation.isPending ? "Logging out..." : "Log out"}
+										</button>
+									</>
+								) : (
+									<>
+										<Link
+											to="/"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isHomeActive && navActiveClass,
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Home
+										</Link>
+										<Link
+											to="/sample"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isSampleActive && navActiveClass,
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Sample output
+										</Link>
+										<Link
+											to="/guide"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+												isGuideActive && navActiveClass,
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											User guide
+										</Link>
+										<Link
+											to="/login"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"w-full justify-start",
+											)}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Log in
+										</Link>
+										<Link
+											to="/signup"
+											className={cn(buttonVariants({ size: "sm" }), "w-full justify-start")}
+											onClick={() => setMobileNavOpen(false)}
+										>
+											Create account
+										</Link>
+									</>
+								)}
+							</div>
+						</SheetContent>
+					</Sheet>
 				</header>
 
 				<Outlet />

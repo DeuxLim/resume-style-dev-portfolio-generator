@@ -53,49 +53,49 @@ export default function LandingPage() {
 	}
 
 	return (
-		<main className="mx-auto w-full max-w-[88rem] space-y-10 pb-16 sm:space-y-20 sm:pb-28">
-			<section className="grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">
-				<div className="space-y-8 sm:space-y-10">
-					<div className="space-y-5 sm:space-y-6">
-						<h1 className="max-w-xl text-3xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+		<main className="mx-auto w-full max-w-[88rem] space-y-8 pb-12 sm:space-y-20 sm:pb-28">
+			<section className="grid items-start gap-6 sm:gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">
+				<div className="space-y-6 sm:space-y-10">
+					<div className="space-y-4 sm:space-y-6">
+						<h1 className="max-w-xl text-[2rem] leading-tight font-semibold tracking-tight sm:text-5xl lg:text-6xl">
 							Build a resume-style web developer portfolio in one sitting.
 						</h1>
-						<p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+						<p className="max-w-xl text-[1.15rem] leading-relaxed text-muted-foreground sm:text-lg">
 							Write once, publish once, and keep your link updated. The builder
 							uses a resume-style layout recruiters already know how to scan, now
 							with a resume builder and PDF export workflow.
 						</p>
 					</div>
 
-					<div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
+					<div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-4">
 						<Link
 							to="/signup"
-							className={`${buttonVariants({ size: "lg" })} w-full justify-center sm:w-auto`}
+							className={`${buttonVariants({ size: "lg" })} h-11 w-full justify-center sm:h-12 sm:w-auto`}
 						>
 							Create account
 						</Link>
 						<Link
 							to="/dashboard/resume"
-							className={`${buttonVariants({ size: "lg", variant: "secondary" })} w-full justify-center sm:w-auto`}
+							className={`${buttonVariants({ size: "lg", variant: "secondary" })} h-11 w-full justify-center sm:h-12 sm:w-auto`}
 						>
 							Open resume builder
 						</Link>
 						<Link
 							to="/sample"
-							className={`${buttonVariants({ size: "lg", variant: "outline" })} w-full justify-center sm:w-auto`}
+							className={`${buttonVariants({ size: "lg", variant: "outline" })} h-11 w-full justify-center sm:h-12 sm:w-auto`}
 						>
 							View full sample
 						</Link>
 					</div>
 
-					<div className="grid gap-4 sm:grid-cols-2">
-						<div className="rounded-xl border bg-background/80 p-5 sm:p-6">
+					<div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+						<div className="rounded-xl border bg-background/80 p-4 sm:p-6">
 							<div className="text-sm font-medium">Recruiter-friendly flow</div>
 							<div className="mt-1 text-sm text-muted-foreground">
 								Intro, experience, projects, and stack in a clear reading order.
 							</div>
 						</div>
-						<div className="rounded-xl border bg-background/80 p-5 sm:p-6">
+						<div className="rounded-xl border bg-background/80 p-4 sm:p-6">
 							<div className="text-sm font-medium">Stable public link</div>
 							<div className="mt-1 text-sm text-muted-foreground">
 								Your URL stays the same while you improve content over time.
@@ -105,19 +105,19 @@ export default function LandingPage() {
 				</div>
 
 				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/5 shadow-none">
-					<CardHeader className="space-y-4 p-6 pb-4 sm:p-8 sm:pb-5">
+					<CardHeader className="space-y-3 p-5 pb-3 sm:space-y-4 sm:p-8 sm:pb-5">
 						<Badge variant="outline" className="w-fit border-sky-400/50 bg-sky-500/10">
 							<Eye className="mr-1 size-3.5" />
 							Sample Preview
 						</Badge>
-						<CardTitle className="text-2xl leading-tight sm:text-3xl">
+						<CardTitle className="text-[2rem] leading-tight sm:text-3xl">
 							Quick look at the generated style
 						</CardTitle>
 						<CardDescription className="text-sm sm:text-base">
 							A compact side preview so you can scan the resume-style layout at a glance.
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-5 p-6 pt-0 sm:p-8 sm:pt-0">
+					<CardContent className="space-y-4 p-5 pt-0 sm:space-y-5 sm:p-8 sm:pt-0">
 						<PortfolioMiniPreview />
 						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
 							your-domain.com/your-username
@@ -129,7 +129,7 @@ export default function LandingPage() {
 				</Card>
 			</section>
 
-			<section className="space-y-4">
+			<section className="space-y-3 sm:space-y-4">
 				<div className="space-y-2">
 					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
 						Full-size sample portfolio output
@@ -140,7 +140,7 @@ export default function LandingPage() {
 					</p>
 				</div>
 				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/5 shadow-none">
-					<CardContent className="space-y-5 p-6 sm:p-8">
+					<CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-8">
 						<PortfolioMiniPreview large />
 						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
 							your-domain.com/your-username
@@ -149,18 +149,18 @@ export default function LandingPage() {
 				</Card>
 			</section>
 
-			<section className="space-y-4">
-					<div className="space-y-2">
-						<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-							Resume builder with generated sample view
-						</h2>
-						<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-							Build your resume in guided sections, review a generated sample
-							screenshot, and keep it aligned with your portfolio content.
-						</p>
-					</div>
+			<section className="space-y-3 sm:space-y-4">
+				<div className="space-y-2">
+					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+						Resume builder with generated sample view
+					</h2>
+					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
+						Build your resume in guided sections, review a generated sample
+						screenshot, and keep it aligned with your portfolio content.
+					</p>
+				</div>
 				<Card className="border-border/70 shadow-none">
-					<CardContent className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr]">
+					<CardContent className="grid gap-5 p-5 sm:gap-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr]">
 						<div className="overflow-hidden rounded-xl border bg-background">
 							<div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
 								<FileText className="size-3.5" />
@@ -220,7 +220,7 @@ export default function LandingPage() {
 				</Card>
 			</section>
 
-			<section className="grid grid-cols-1 gap-6 md:grid-cols-3">
+			<section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
 				{pillars.map((pillar) => (
 					<Card key={pillar.title} className="border-border/70 bg-background/75 shadow-none">
 						<CardHeader className="gap-4 p-6 sm:p-7">
@@ -234,7 +234,7 @@ export default function LandingPage() {
 				))}
 			</section>
 
-			<section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+			<section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
 				<Card className="border-border/70 shadow-none">
 					<CardHeader className="p-6 pb-3 sm:p-7 sm:pb-4">
 						<CardTitle className="text-xl">How it works</CardTitle>
