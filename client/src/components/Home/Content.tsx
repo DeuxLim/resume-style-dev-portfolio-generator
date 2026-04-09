@@ -9,37 +9,33 @@ import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
 import MarkdownContent from "@/components/shared/MarkdownContent";
 import {
-	packSectionLayout,
 	getVisibleSectionOrder,
 	PORTFOLIO_LAYOUT_GAP,
-	PORTFOLIO_LAYOUT_ROW_HEIGHT,
 } from "@/lib/portfolioLayout";
-import type { CSSProperties, ReactNode } from "react";
+import {
+	type CSSProperties,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import type { PublicPortfolio } from "../../../../shared/types/portfolio.types";
 import { defaultPortfolioLayout } from "../../../../shared/defaults/portfolio";
 import type { PortfolioSectionKey } from "../../../../shared/types/portfolio.types";
+
+const DESKTOP_MASONRY_ROW_HEIGHT = 8;
 
 export default function Content({
 	portfolio,
 }: {
 	portfolio?: PublicPortfolio;
 }) {
-	const clampSectionHeight = (value: number) =>
-		Math.min(48, Math.max(4, Math.round(value)));
 	const prefersReducedMotion = usePrefersReducedMotion();
 	const data = portfolio;
 	const sectionOrder = getVisibleSectionOrder(data);
 	const rawSpans = {
 		...defaultPortfolioLayout.sectionSpans,
 		...(data?.layout?.sectionSpans ?? {}),
-	};
-	const rawHeights = {
-		...defaultPortfolioLayout.sectionHeights,
-		...(data?.layout?.sectionHeights ?? {}),
-	};
-	const rawPositions = {
-		...(defaultPortfolioLayout.sectionPositions ?? {}),
-		...(data?.layout?.sectionPositions ?? {}),
 	};
 
 	const sectionSpanByKey: Record<PortfolioSectionKey, 4 | 6 | 8 | 12> = {
@@ -51,36 +47,60 @@ export default function Content({
 		heatmap: (rawSpans.heatmap ?? 6) as 4 | 6 | 8 | 12,
 		custom: (rawSpans.custom ?? 6) as 4 | 6 | 8 | 12,
 	};
-	const sectionHeightByKey: Record<PortfolioSectionKey, number> = {
-		about: clampSectionHeight(Number(rawHeights.about ?? 7)),
-		timeline: clampSectionHeight(Number(rawHeights.timeline ?? 7)),
-		experience: clampSectionHeight(Number(rawHeights.experience ?? 7)),
-		tech: clampSectionHeight(Number(rawHeights.tech ?? 7)),
-		projects: clampSectionHeight(Number(rawHeights.projects ?? 6)),
-		heatmap: clampSectionHeight(Number(rawHeights.heatmap ?? 5)),
-		custom: clampSectionHeight(Number(rawHeights.custom ?? 5)),
-	};
-	const sectionPositionByKey: Record<PortfolioSectionKey, { x: number; y: number }> = {
-		about: { x: Number(rawPositions.about?.x ?? 0), y: Number(rawPositions.about?.y ?? 0) },
-		timeline: { x: Number(rawPositions.timeline?.x ?? 8), y: Number(rawPositions.timeline?.y ?? 0) },
-		experience: { x: Number(rawPositions.experience?.x ?? 0), y: Number(rawPositions.experience?.y ?? 7) },
-		tech: { x: Number(rawPositions.tech?.x ?? 8), y: Number(rawPositions.tech?.y ?? 7) },
-		projects: { x: Number(rawPositions.projects?.x ?? 0), y: Number(rawPositions.projects?.y ?? 14) },
-		heatmap: { x: Number(rawPositions.heatmap?.x ?? 0), y: Number(rawPositions.heatmap?.y ?? 20) },
-		custom: { x: Number(rawPositions.custom?.x ?? 6), y: Number(rawPositions.custom?.y ?? 20) },
-	};
-	const packedLayoutByKey = packSectionLayout({
-		order: sectionOrder,
-		spans: sectionSpanByKey,
-		heights: sectionHeightByKey,
-		positions: sectionPositionByKey,
-	});
-	const footerDesktopRowStart =
-		sectionOrder.reduce((maxRow, key) => {
-			const y = packedLayoutByKey[key]?.y ?? 0;
-			const h = packedLayoutByKey[key]?.h ?? 6;
-			return Math.max(maxRow, y + h);
-		}, 0) + 1;
+	const sectionRefs = useRef<Partial<Record<PortfolioSectionKey, HTMLDivElement | null>>>({});
+	const [rowSpanByKey, setRowSpanByKey] = useState<Partial<Record<PortfolioSectionKey, number>>>({});
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+
+		const computeRowSpans = () => {
+			if (window.innerWidth < 768) return;
+
+			setRowSpanByKey((previous) => {
+				let changed = false;
+				const next = { ...previous };
+
+				sectionOrder.forEach((sectionKey) => {
+					const node = sectionRefs.current[sectionKey];
+					if (!node) return;
+					const measuredContentHeight = Math.max(
+						node.scrollHeight,
+						node.getBoundingClientRect().height,
+					);
+					const rowSpan = Math.max(
+						1,
+						Math.ceil(
+							(measuredContentHeight + PORTFOLIO_LAYOUT_GAP) /
+								(DESKTOP_MASONRY_ROW_HEIGHT + PORTFOLIO_LAYOUT_GAP),
+						),
+					);
+					if (next[sectionKey] !== rowSpan) {
+						next[sectionKey] = rowSpan;
+						changed = true;
+					}
+				});
+
+				return changed ? next : previous;
+			});
+		};
+
+		const resizeObserver = new ResizeObserver(() => {
+			window.requestAnimationFrame(computeRowSpans);
+		});
+
+		sectionOrder.forEach((sectionKey) => {
+			const node = sectionRefs.current[sectionKey];
+			if (node) resizeObserver.observe(node);
+		});
+
+		window.addEventListener("resize", computeRowSpans);
+		window.requestAnimationFrame(computeRowSpans);
+
+		return () => {
+			resizeObserver.disconnect();
+			window.removeEventListener("resize", computeRowSpans);
+		};
+	}, [sectionOrder, data]);
 
 	const sectionContentByKey: Record<PortfolioSectionKey, ReactNode> = {
 		about: <About paragraphs={data?.about} />,
@@ -139,46 +159,48 @@ export default function Content({
 	};
 
 	return (
-		<div
-			className="generated-output-grid grid"
-			style={
-				{
-					gap: `${PORTFOLIO_LAYOUT_GAP}px`,
-					"--desktop-row-height": `${PORTFOLIO_LAYOUT_ROW_HEIGHT}px`,
-				} as CSSProperties
-			}
-		>
-			{sectionOrder.map((sectionKey, index) => {
-				const packed = packedLayoutByKey[sectionKey];
-				const desktopPlacementStyle = {
-					"--desktop-col-start": String((packed?.x ?? 0) + 1),
-					"--desktop-col-span": String(packed?.w ?? 6),
-					"--desktop-row-start": String((packed?.y ?? 0) + 1),
-					"--desktop-row-span": String(packed?.h ?? 6),
-				} as CSSProperties;
+		<div className="flex flex-col">
+			<div
+				className="generated-output-grid grid"
+				style={
+					{
+						gap: `${PORTFOLIO_LAYOUT_GAP}px`,
+						"--desktop-row-height": `${DESKTOP_MASONRY_ROW_HEIGHT}px`,
+					} as CSSProperties
+				}
+			>
+				{sectionOrder.map((sectionKey, index) => {
+					const desktopPlacementStyle = {
+						"--desktop-col-span": String(sectionSpanByKey[sectionKey] ?? 6),
+						"--desktop-row-span": String(rowSpanByKey[sectionKey] ?? 1),
+					} as CSSProperties;
 
-				return (
-					<motion.div
-						key={sectionKey}
-						layout
-						initial={
-							prefersReducedMotion
-								? false
-								: { opacity: 0, y: index % 2 === 0 ? 14 : -14 }
-						}
-						animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-						transition={
-							prefersReducedMotion
-								? undefined
-								: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
-						}
-						className="generated-output-section layout-scroll-content app-card overflow-x-hidden p-2.5 sm:p-4 [overflow-wrap:anywhere]"
-						style={desktopPlacementStyle}
-					>
-						{sectionContentByKey[sectionKey]}
-					</motion.div>
-				);
-			})}
+					return (
+						<motion.div
+							key={sectionKey}
+							ref={(node) => {
+								sectionRefs.current[sectionKey] = node;
+							}}
+							layout
+							initial={
+								prefersReducedMotion
+									? false
+									: { opacity: 0, y: index % 2 === 0 ? 14 : -14 }
+							}
+							animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+							transition={
+								prefersReducedMotion
+									? undefined
+									: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
+							}
+							className="generated-output-section app-card overflow-x-hidden p-2.5 sm:p-4 [overflow-wrap:anywhere]"
+							style={desktopPlacementStyle}
+						>
+							{sectionContentByKey[sectionKey]}
+						</motion.div>
+					);
+				})}
+			</div>
 
 			{/* Footer */}
 			<motion.div
@@ -190,11 +212,6 @@ export default function Content({
 						: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
 				}
 				className="generated-output-footer mt-3 flex h-16 items-center justify-center border-t border-(--app-border) p-2.5 sm:mt-4 sm:h-24 sm:p-4"
-				style={
-					{
-						"--desktop-footer-row-start": String(footerDesktopRowStart),
-					} as CSSProperties
-				}
 			>
 				<Footer fullName={data?.fullName} />
 			</motion.div>

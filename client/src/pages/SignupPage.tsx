@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
 
 export default function SignupPage() {
 	const navigate = useNavigate();
@@ -50,9 +50,24 @@ export default function SignupPage() {
 	});
 
 	return (
-		<main className="mx-auto w-full max-w-xl overflow-hidden rounded-[2rem] border border-border/70 bg-background/82 shadow-[0_30px_80px_-56px_rgba(20,30,70,0.62)]">
-			<section className="p-7 sm:p-10">
-				<div className="mx-auto w-full max-w-xl space-y-6">
+		<main className="mx-auto w-full max-w-5xl">
+			<section className="v2-shell-header v2-top-nav-glass overflow-hidden rounded-[2rem]">
+				<div className="grid grid-cols-1 md:grid-cols-[0.92fr_1.08fr]">
+					<div className="relative overflow-hidden border-b border-border/50 bg-gradient-to-br from-muted/55 via-muted/20 to-transparent p-7 md:border-r md:border-b-0 md:p-10">
+						<div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/45 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-muted-foreground">
+							<Sparkles className="size-3.5" />
+							PROFILE BUILDER
+						</div>
+						<h2 className="mt-5 text-2xl font-semibold leading-tight sm:text-3xl">
+							Build your workspace
+						</h2>
+						<p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+							Create an account to start customizing your portfolio and generating resume versions.
+						</p>
+					</div>
+
+					<div className="p-7 sm:p-10">
+						<div className="mx-auto w-full max-w-xl space-y-6">
 					<div>
 						<h1 className="text-3xl leading-tight sm:text-4xl">Create your account</h1>
 						<p className="mt-2 text-sm text-muted-foreground">
@@ -67,6 +82,7 @@ export default function SignupPage() {
 								id="fullName"
 								type="text"
 								placeholder="Maria Angela Santos"
+								className="bg-background/55"
 								value={form.fullName}
 								onChange={(event) =>
 									setForm((current) => ({
@@ -83,6 +99,7 @@ export default function SignupPage() {
 								id="username"
 								type="text"
 								placeholder="maria-santos-dev"
+								className="bg-background/55"
 								value={form.username}
 								onChange={(event) =>
 									setForm((current) => ({
@@ -100,6 +117,7 @@ export default function SignupPage() {
 							id="email"
 							type="email"
 							placeholder="you@example.com"
+							className="bg-background/55"
 							value={form.email}
 							onChange={(event) =>
 								setForm((current) => ({
@@ -118,7 +136,7 @@ export default function SignupPage() {
 								type={showPassword ? "text" : "password"}
 								placeholder="At least 8 characters"
 								value={form.password}
-								className="pr-10"
+								className="bg-background/55 pr-10"
 								onChange={(event) =>
 									setForm((current) => ({
 										...current,
@@ -167,6 +185,8 @@ export default function SignupPage() {
 							Log in
 						</Link>
 					</p>
+				</div>
+					</div>
 				</div>
 			</section>
 		</main>

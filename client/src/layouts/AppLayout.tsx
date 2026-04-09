@@ -169,12 +169,6 @@ export default function AppLayout() {
 					active: isSampleActive,
 				},
 				{
-					to: "/guide",
-					label: "Guide",
-					icon: BookOpen,
-					active: isGuideActive,
-				},
-				{
 					to: "/login",
 					label: "Login",
 					icon: UserRoundPen,
@@ -339,7 +333,7 @@ export default function AppLayout() {
 			</div>
 
 			<div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
-				<div className="v2-shell-header grid grid-cols-5 gap-1 p-1.5">
+				<div className="v2-shell-header v2-top-nav-glass grid grid-cols-4 gap-1 p-1.5">
 					{mobileDockItems.map((item) => (
 						<Link
 							key={item.to}
@@ -354,16 +348,6 @@ export default function AppLayout() {
 							{item.label}
 						</Link>
 					))}
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						className="h-auto flex-col gap-0.5 rounded-2xl px-2 py-2 text-[0.64rem] font-semibold tracking-[0.04em] text-muted-foreground"
-						onClick={() => setMobileNavOpen(true)}
-					>
-						<Menu className="size-4" />
-						Menu
-					</Button>
 				</div>
 			</div>
 

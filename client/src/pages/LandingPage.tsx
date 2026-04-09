@@ -207,6 +207,15 @@ export default function LandingPage() {
 						Resume export is a first-class feature in Profile Builder. The sample below
 						shows the generated PDF output.
 					</p>
+					<div>
+						<Link
+							to="/sample/resume"
+							className={buttonVariants({ variant: "outline", size: "sm" })}
+						>
+							Open full resume sample
+							<ArrowUpRight className="size-4" />
+						</Link>
+					</div>
 				</div>
 				<div className="mt-6 overflow-hidden rounded-[1.2rem] border border-border/70 bg-card">
 					<iframe
