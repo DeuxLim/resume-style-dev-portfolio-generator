@@ -355,6 +355,7 @@ const buildSampleResume = (user: {
 			websiteUrl: `https://${user.username}.dev`,
 			linkedinUrl: "https://www.linkedin.com/in/avery-kim-dev/",
 			githubUrl: "https://github.com/averykim-dev",
+			photoDataUrl: "",
 		},
 		summary:
 			"Senior full-stack engineer focused on reliable product delivery. I build maintainable Laravel and React systems, improve release confidence through observability, and ship measurable user-impact improvements with cross-functional teams.",

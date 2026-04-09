@@ -436,6 +436,7 @@ const buildBlankResume = (user: UserLookupRow): ResumeRecord => {
 				websiteUrl: "",
 				linkedinUrl: "",
 				githubUrl: "",
+				photoDataUrl: "",
 			},
 			summary: "",
 			experience: [],

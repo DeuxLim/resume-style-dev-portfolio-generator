@@ -86,6 +86,7 @@ export const buildStarterResumeContent = (
 		websiteUrl: "",
 		linkedinUrl: "",
 		githubUrl: "",
+		photoDataUrl: "",
 	},
 	summary:
 		"Product-minded developer focused on building reliable and maintainable web applications with clean UX and practical architecture.",

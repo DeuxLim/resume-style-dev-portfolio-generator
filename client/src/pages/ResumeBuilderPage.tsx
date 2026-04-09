@@ -1236,6 +1236,23 @@ export default function ResumeBuilderPage() {
 		);
 	};
 
+	const handleHeaderPhotoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) return;
+		if (!file.type.startsWith("image/")) {
+			event.target.value = "";
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			if (typeof reader.result === "string") {
+				setHeaderField("photoDataUrl", reader.result);
+			}
+		};
+		reader.readAsDataURL(file);
+		event.target.value = "";
+	};
+
 	const updateListSection = (
 		section: keyof ResumeRecord["content"],
 		index: number,
@@ -1737,6 +1754,35 @@ export default function ResumeBuilderPage() {
 										value={resume.content.header.githubUrl}
 										onChange={(event) => setHeaderField("githubUrl", event.target.value)}
 									/>
+								</div>
+								<div className="space-y-2 md:col-span-2">
+									<Label>Header Photo (1x1)</Label>
+									<div className="flex flex-wrap items-center gap-3">
+										<Input
+											type="file"
+											accept="image/png,image/jpeg,image/jpg"
+											onChange={handleHeaderPhotoUpload}
+											className="max-w-sm"
+										/>
+										{resume.content.header.photoDataUrl ? (
+											<Button
+												type="button"
+												variant="outline"
+												onClick={() => setHeaderField("photoDataUrl", "")}
+											>
+												Remove photo
+											</Button>
+										) : null}
+									</div>
+									{resume.content.header.photoDataUrl ? (
+										<div className="pt-1">
+											<img
+												src={resume.content.header.photoDataUrl}
+												alt="Header preview"
+												className="h-14 w-14 rounded-sm border object-cover"
+											/>
+										</div>
+									) : null}
 								</div>
 						</CardContent>
 					</Card>

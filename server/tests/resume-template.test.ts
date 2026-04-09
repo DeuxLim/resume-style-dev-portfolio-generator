@@ -83,3 +83,34 @@ test('groupResumeSkills categorizes common skills for Modern ATS', () => {
 		],
 	);
 });
+
+test('renderResumePdf embeds header photo for Modern ATS when provided', async () => {
+	const resume = buildStarterResume({
+		fullName: 'Render User',
+		email: 'render@example.com',
+		location: 'Quezon City',
+		headline: 'Junior Full Stack Web Developer',
+	});
+	resume.templateKey = 'deux_modern_v1';
+	resume.content.header = {
+		...resume.content.header,
+		photoDataUrl:
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z8nQAAAAASUVORK5CYII=',
+	};
+
+	const validation = validateResume(resume);
+	assert.equal(validation.canExportPdf, true);
+
+	const doc = renderResumePdf(resume, validation);
+	const chunks: Buffer[] = [];
+
+	await new Promise<void>((resolve, reject) => {
+		doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+		doc.on('end', () => resolve());
+		doc.on('error', (error) => reject(error));
+		doc.end();
+	});
+
+	const pdfText = Buffer.concat(chunks).toString('latin1');
+	assert.match(pdfText, /\/Subtype\s*\/Image/);
+});

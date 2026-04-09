@@ -28,6 +28,7 @@ export type ResumeHeader = {
 	websiteUrl: string;
 	linkedinUrl: string;
 	githubUrl: string;
+	photoDataUrl: string;
 };
 
 export type ResumeExperienceItem = {

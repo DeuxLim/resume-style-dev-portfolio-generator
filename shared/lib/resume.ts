@@ -217,6 +217,7 @@ export const normalizeResumeContent = (content: ResumeContent): ResumeContent =>
 		websiteUrl: String(content.header.websiteUrl ?? "").trim(),
 		linkedinUrl: String(content.header.linkedinUrl ?? "").trim(),
 		githubUrl: String(content.header.githubUrl ?? "").trim(),
+		photoDataUrl: String(content.header.photoDataUrl ?? "").trim(),
 	},
 	summary: String(content.summary ?? "").trim(),
 	experience: (Array.isArray(content.experience) ? content.experience : []).map(

@@ -410,6 +410,18 @@ const formatHeaderLinkText = (value: string) =>
 		.replace(/^https?:\/\//i, "")
 		.replace(/\/+$/g, "");
 
+const parseHeaderPhotoDataUrl = (value: string): Buffer | null => {
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+	const match = trimmed.match(/^data:image\/(?:png|jpe?g);base64,([\s\S]+)$/i);
+	if (!match) return null;
+	try {
+		return Buffer.from(match[1], "base64");
+	} catch {
+		return null;
+	}
+};
+
 export const renderResumePdf = (
 	resume: ResumeRecord,
 	validation: ResumeValidationResult,
@@ -554,6 +566,18 @@ export const renderResumePdf = (
 		doc.page.width - doc.page.margins.left - doc.page.margins.right;
 	const spacing = style.spacing;
 	const isModernAts = templateKey === "deux_modern_v1";
+	const headerPhotoSize = 58;
+	const headerPhotoGap = 14;
+	const headerPhotoBuffer = isModernAts
+		? parseHeaderPhotoDataUrl(content.header.photoDataUrl)
+		: null;
+	const hasHeaderPhoto = Boolean(headerPhotoBuffer);
+	const headerTextWidth = hasHeaderPhoto
+		? pageWidth - headerPhotoSize - headerPhotoGap
+		: pageWidth;
+	const headerPhotoX = doc.page.margins.left + headerTextWidth + headerPhotoGap;
+	const headerPhotoY = doc.y;
+	let headerPhotoBottomY = doc.y;
 
 	const addSpace = (points: number) => {
 		doc.y += points;
@@ -642,12 +666,26 @@ export const renderResumePdf = (
 			}
 		};
 
+	if (headerPhotoBuffer) {
+		try {
+			doc.image(headerPhotoBuffer, headerPhotoX, headerPhotoY, {
+				fit: [headerPhotoSize, headerPhotoSize],
+				align: "center",
+				valign: "center",
+			});
+			headerPhotoBottomY = headerPhotoY + headerPhotoSize;
+		} catch {
+			headerPhotoBottomY = doc.y;
+		}
+	}
+
 	const displayName = content.header.fullName || "Your Name";
 	doc
 		.font(style.nameFont)
 		.fontSize(style.nameSize)
 		.text(isModernAts ? displayName.toUpperCase() : displayName, {
 			align: style.nameAlign,
+			width: headerTextWidth,
 			lineGap: isModernAts ? 0 : 1,
 		});
 	if (isModernAts) {
@@ -672,6 +710,7 @@ export const renderResumePdf = (
 				.fillColor(style.defaultTextColor)
 				.text(plainParts.join(" | "), {
 					align: style.metaAlign,
+					width: headerTextWidth,
 					lineGap: 0,
 				});
 		}
@@ -688,6 +727,7 @@ export const renderResumePdf = (
 					.text(displayLink, {
 						underline: true,
 						lineGap: 0,
+						width: headerTextWidth,
 						continued: !isLast,
 					});
 				if (!isLast) {
@@ -699,6 +739,7 @@ export const renderResumePdf = (
 						.text(separator, {
 							underline: false,
 							lineGap: 0,
+							width: headerTextWidth,
 							continued: true,
 						});
 				}
@@ -707,6 +748,9 @@ export const renderResumePdf = (
 		}
 
 		addSpace(6);
+		if (hasHeaderPhoto && doc.y < headerPhotoBottomY + 3) {
+			doc.y = headerPhotoBottomY + 3;
+		}
 	} else {
 		if (content.header.headline) {
 			addSpace(spacing.headerNameToHeadline);
