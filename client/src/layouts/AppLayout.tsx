@@ -194,14 +194,14 @@ export default function AppLayout() {
 						<div className="flex items-center gap-2 sm:gap-3">
 							<Link
 								to="/"
-								className="min-w-0 flex-1 px-1 py-1 transition-opacity hover:opacity-80 sm:flex-none"
+								className="min-w-0 flex-1 px-1 py-1 transition-opacity hover:opacity-80 lg:flex-none"
 							>
 								<div className="truncate text-[1rem] font-semibold tracking-[0.03em] text-foreground/95">
 									Profile Builder
 								</div>
 							</Link>
 
-							<nav className="hidden min-w-0 flex-1 items-center justify-center gap-3 md:flex">
+							<nav className="hidden min-w-0 flex-1 items-center justify-center gap-3 lg:flex">
 								<div className="flex h-9 items-center gap-1.5">
 									{(isAuthed
 										? desktopAuthedLinks
@@ -269,7 +269,7 @@ export default function AppLayout() {
 
 							<div className="flex items-center gap-2">
 								{!isAuthed ? (
-									<div className="hidden items-center gap-2 md:flex">
+									<div className="hidden items-center gap-2 lg:flex">
 										<Link
 											to="/login"
 											className={buttonVariants({
@@ -290,13 +290,14 @@ export default function AppLayout() {
 									</div>
 								) : null}
 
-								<div className="hidden sm:block">
+								<div className="hidden lg:block">
 									<ThemeToggleButton />
 								</div>
 								<Button
 									type="button"
 									size="icon-sm"
 									variant="outline"
+									className="lg:hidden"
 									onClick={() => setMobileNavOpen(true)}
 									aria-label="Open menu"
 								>
@@ -310,7 +311,7 @@ export default function AppLayout() {
 				<Outlet />
 			</div>
 
-			<div className="fixed inset-x-3 bottom-3 z-40 md:hidden">
+			<div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
 				<div className="v2-shell-header grid grid-cols-5 gap-1 p-1.5">
 					{mobileDockItems.map((item) => (
 						<Link

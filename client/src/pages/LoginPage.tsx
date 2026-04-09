@@ -6,12 +6,13 @@ import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [form, setForm] = useState({ email: "", password: "" });
+	const [showPassword, setShowPassword] = useState(false);
 	const [error, setError] = useState("");
 
 	const loginMutation = useMutation({
@@ -56,18 +57,33 @@ export default function LoginPage() {
 
 						<div className="space-y-2">
 							<Label htmlFor="password">Password</Label>
-							<Input
-								id="password"
-								type="password"
-								placeholder="Enter your password"
-								value={form.password}
-								onChange={(event) =>
-									setForm((current) => ({
-										...current,
-										password: event.target.value,
-									}))
-								}
-							/>
+							<div className="relative">
+								<Input
+									id="password"
+									type={showPassword ? "text" : "password"}
+									placeholder="Enter your password"
+									value={form.password}
+									className="pr-10"
+									onChange={(event) =>
+										setForm((current) => ({
+											...current,
+											password: event.target.value,
+										}))
+									}
+								/>
+								<button
+									type="button"
+									aria-label={showPassword ? "Hide password" : "Show password"}
+									className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+									onClick={() => setShowPassword((current) => !current)}
+								>
+									{showPassword ? (
+										<EyeOff className="size-4" />
+									) : (
+										<Eye className="size-4" />
+									)}
+								</button>
+							</div>
 						</div>
 					</div>
 

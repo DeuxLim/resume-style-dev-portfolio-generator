@@ -56,11 +56,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
 	ChevronDown,
 	ChevronUp,
 	Eye,
 	EyeOff,
+	MoreHorizontal,
 	Pencil,
 	Save,
 	Trash2,
@@ -213,6 +215,8 @@ export default function PortfolioEditorPage() {
 	const [shortcutsOpen, setShortcutsOpen] = useState(false);
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+	const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
 	const [pendingResetAutoFit, setPendingResetAutoFit] = useState(false);
@@ -941,7 +945,105 @@ export default function PortfolioEditorPage() {
 
 	const renderHeaderActionsEditor = () => (
 		<div className="space-y-3">
-			<div className="overflow-x-auto rounded-md border bg-background/70">
+			<div className="space-y-2 md:hidden">
+				{portfolio?.headerActions.map((action) => (
+					<div key={action.id} className="space-y-2 rounded-md border bg-background/70 p-3">
+						<div className="grid grid-cols-1 gap-2">
+							<div className="space-y-1">
+								<div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+									Type
+								</div>
+								<select
+									className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+									value={action.type}
+									onChange={(event) =>
+										setHeaderActionType(
+											action.id,
+											event.target.value as HeaderActionType,
+										)
+									}
+								>
+									<option value="github">Github</option>
+									<option value="linkedin">LinkedIn</option>
+									<option value="email">Email</option>
+									<option value="phone">Phone</option>
+									<option value="link">Custom link</option>
+								</select>
+							</div>
+							<div className="space-y-1">
+								<div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+									Value
+								</div>
+								<Input
+									value={action.value}
+									onChange={(event) =>
+										setHeaderActionField(
+											action.id,
+											"value",
+											event.target.value,
+										)
+									}
+									placeholder={
+										action.type === "email"
+											? "name@example.com"
+											: action.type === "phone"
+												? "+63..."
+												: "https://..."
+									}
+								/>
+							</div>
+							<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+								<div className="space-y-1">
+									<div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+										Display
+									</div>
+									<select
+										className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+										value={action.display === "value" ? "value" : "label"}
+										onChange={(event) =>
+											setHeaderActionField(
+												action.id,
+												"display",
+												event.target.value,
+											)
+										}
+									>
+										<option value="label">Use label</option>
+										<option value="value">Use actual value</option>
+									</select>
+								</div>
+								<div className="space-y-1">
+									<div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+										Label
+									</div>
+									<Input
+										value={action.label}
+										onChange={(event) =>
+											setHeaderActionField(
+												action.id,
+												"label",
+												event.target.value,
+											)
+										}
+										placeholder="Label"
+									/>
+								</div>
+							</div>
+						</div>
+						<div className="flex justify-end">
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={() => removeHeaderAction(action.id)}
+							>
+								Remove
+							</Button>
+						</div>
+					</div>
+				))}
+			</div>
+			<div className="hidden overflow-x-auto rounded-md border bg-background/70 md:block">
 				<div className="min-w-[920px]">
 					<div className="grid grid-cols-[140px_minmax(260px,1fr)_170px_170px_100px] gap-2 border-b px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
 						<div>Type</div>
@@ -2254,7 +2356,7 @@ export default function PortfolioEditorPage() {
 							<span className="font-medium text-foreground">/{portfolio.username}</span>
 						</div>
 					</div>
-					<CardAction className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+					<CardAction className="hidden w-full flex-col items-start gap-2 lg:flex lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
 						{canManageSelectedDraftVersion ? (
 							<Button
 								type="button"
@@ -2301,6 +2403,17 @@ export default function PortfolioEditorPage() {
 							{saveMutation.isPending ? "Saving..." : "Save changes"}
 						</Button>
 					</CardAction>
+					<div className="flex w-full items-center justify-end gap-2 lg:hidden">
+						<Button
+							type="button"
+							size="icon-sm"
+							variant="outline"
+							aria-label="Open portfolio actions"
+							onClick={() => setMobileActionsOpen(true)}
+						>
+							<MoreHorizontal className="size-4" />
+						</Button>
+					</div>
 				</CardHeader>
 			</Card>
 			{draftMode ? (
@@ -2326,9 +2439,25 @@ export default function PortfolioEditorPage() {
 			) : null}
 
 			<div className="space-y-6">
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
+				<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
+					<div className="space-y-2 lg:hidden">
+						<Label htmlFor="portfolio-editor-mobile-tab">Editor section</Label>
+						<select
+							id="portfolio-editor-mobile-tab"
+							value={activeTab}
+							onChange={(event) => setActiveTab(event.target.value)}
+							className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+						>
+						<option value="profile">Profile</option>
+						<option value="story">Story</option>
+						<option value="career">Career</option>
+						<option value="stack">Stack & Projects</option>
+						<option value="layout">Layout</option>
+						<option value="extras">Extras</option>
+					</select>
+				</div>
 				<TabsList
-					className="!h-auto w-full flex-wrap justify-start gap-1"
+					className="!h-auto hidden w-full flex-wrap justify-start gap-1 lg:flex"
 				>
 					<TabsTrigger value="profile" className="h-9 flex-none px-4">
 						Profile
@@ -3964,25 +4093,40 @@ export default function PortfolioEditorPage() {
 							<Separator />
 							<div className="space-y-2 rounded-xl bg-muted/20 p-4">
 								<Label htmlFor="geminiApiKey">Optional Gemini API key</Label>
-								<Input
-									id="geminiApiKey"
-									type="password"
-									placeholder="Leave empty to use app-level key"
-									value={portfolio.geminiApiKey}
-									onChange={(event) =>
-										setPortfolio((current) =>
-											current
-												? {
-														...current,
-														geminiApiKey: event.target.value,
-														hasCustomGeminiKey: Boolean(
-															event.target.value.trim(),
-														),
-													}
-												: current,
-										)
-									}
-								/>
+								<div className="relative">
+									<Input
+										id="geminiApiKey"
+										type={showGeminiApiKey ? "text" : "password"}
+										placeholder="Leave empty to use app-level key"
+										value={portfolio.geminiApiKey}
+										className="pr-10"
+										onChange={(event) =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															geminiApiKey: event.target.value,
+															hasCustomGeminiKey: Boolean(
+																event.target.value.trim(),
+															),
+														}
+													: current,
+											)
+										}
+									/>
+									<button
+										type="button"
+										aria-label={showGeminiApiKey ? "Hide API key" : "Show API key"}
+										className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+										onClick={() => setShowGeminiApiKey((current) => !current)}
+									>
+										{showGeminiApiKey ? (
+											<EyeOff className="size-4" />
+										) : (
+											<Eye className="size-4" />
+										)}
+									</button>
+								</div>
 								<p className="text-xs text-muted-foreground">
 									Add your own key only if you want separate usage and limits.
 								</p>
@@ -3996,6 +4140,69 @@ export default function PortfolioEditorPage() {
 				</TabsContent>
 				</Tabs>
 			</div>
+
+			<Sheet open={mobileActionsOpen} onOpenChange={setMobileActionsOpen}>
+				<SheetContent side="bottom" className="rounded-t-2xl p-0 lg:hidden">
+					<SheetHeader className="border-b border-border/60 px-5 py-4 text-left">
+						<SheetTitle>Portfolio actions</SheetTitle>
+					</SheetHeader>
+					<div className="space-y-2 px-4 py-4">
+						<Button
+							type="button"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								saveMutation.mutate();
+							}}
+							disabled={saveMutation.isPending}
+						>
+							<Save className="size-4" />
+							{saveMutation.isPending ? "Saving..." : "Save changes"}
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								setPreviewOpen(true);
+							}}
+						>
+							<Eye className="size-4" />
+							Open Preview
+						</Button>
+						{canManageSelectedDraftVersion ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									setMobileActionsOpen(false);
+									setRenameDialogOpen(true);
+								}}
+							>
+								<Pencil className="size-4" />
+								Rename version
+							</Button>
+						) : null}
+						{canManageSelectedDraftVersion ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start text-destructive hover:text-destructive"
+								onClick={() => {
+									setMobileActionsOpen(false);
+									setDeleteDialogOpen(true);
+								}}
+								disabled={Boolean(editingVersion?.isActive)}
+							>
+								<Trash2 className="size-4" />
+								Delete version
+							</Button>
+						) : null}
+					</div>
+				</SheetContent>
+			</Sheet>
 
 			{!previewOpen ? (
 				<div

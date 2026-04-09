@@ -57,6 +57,12 @@ function SheetContent({
         {...props}
       >
         {children}
+        {side === "bottom" ? (
+          <div
+            aria-hidden="true"
+            className="h-[calc(env(safe-area-inset-bottom)+6.5rem)] shrink-0"
+          />
+        ) : null}
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"

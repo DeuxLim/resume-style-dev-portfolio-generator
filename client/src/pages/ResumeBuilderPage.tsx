@@ -45,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
 	ArrowDown,
 	ArrowUp,
@@ -52,6 +53,7 @@ import {
 	Download,
 	Eye,
 	EyeOff,
+	MoreHorizontal,
 	Pencil,
 	Save,
 	Shuffle,
@@ -219,6 +221,7 @@ export default function ResumeBuilderPage() {
 	const [resetLayoutDialogOpen, setResetLayoutDialogOpen] = useState(false);
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
 	const [versionToCreate, setVersionToCreate] = useState<{
 		name: string;
@@ -1086,7 +1089,7 @@ export default function ResumeBuilderPage() {
 							Edit structured resume content, tune section visibility, and validate against export rules in real time.
 						</CardDescription>
 					</div>
-					<CardAction className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+					<CardAction className="hidden w-full flex-col items-start gap-2 lg:flex lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
 						<Button
 							type="button"
 							size="sm"
@@ -1148,6 +1151,17 @@ export default function ResumeBuilderPage() {
 							</Button>
 						</a>
 					</CardAction>
+					<div className="flex w-full items-center justify-end gap-2 lg:hidden">
+						<Button
+							type="button"
+							size="icon-sm"
+							variant="outline"
+							aria-label="Open resume actions"
+							onClick={() => setMobileActionsOpen(true)}
+						>
+							<MoreHorizontal className="size-4" />
+						</Button>
+					</div>
 				</CardHeader>
 			</Card>
 			{draftMode ? (
@@ -1172,6 +1186,91 @@ export default function ResumeBuilderPage() {
 				</div>
 			) : null}
 
+			<Sheet open={mobileActionsOpen} onOpenChange={setMobileActionsOpen}>
+				<SheetContent side="bottom" className="rounded-t-2xl p-0 lg:hidden">
+					<SheetHeader className="border-b border-border/60 px-5 py-4 text-left">
+						<SheetTitle>Resume actions</SheetTitle>
+					</SheetHeader>
+					<div className="space-y-2 px-4 py-4">
+						<Button
+							type="button"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								saveMutation.mutate();
+							}}
+							disabled={saveMutation.isPending}
+						>
+							<Save className="size-4" />
+							{saveMutation.isPending ? "Saving..." : "Save changes"}
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								setPreviewOpen(true);
+							}}
+						>
+							<Eye className="size-4" />
+							Open Preview
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								openCreateVersionModal();
+							}}
+						>
+							New draft version
+						</Button>
+						{canManageSelectedDraftVersion ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									setMobileActionsOpen(false);
+									setRenameDialogOpen(true);
+								}}
+							>
+								<Pencil className="size-4" />
+								Rename version
+							</Button>
+						) : null}
+						{canManageSelectedDraftVersion ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start text-destructive hover:text-destructive"
+								onClick={() => {
+									setMobileActionsOpen(false);
+									setDeleteDialogOpen(true);
+								}}
+								disabled={Boolean(editingVersion?.isActive)}
+							>
+								<Trash2 className="size-4" />
+								Delete version
+							</Button>
+						) : null}
+						<a href={pdfDownloadHref}>
+							<Button
+								type="button"
+								variant="secondary"
+								className="w-full justify-start"
+								onClick={() => setMobileActionsOpen(false)}
+							>
+								<Download className="size-4" />
+								Download PDF
+							</Button>
+						</a>
+					</div>
+				</SheetContent>
+			</Sheet>
+
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
 				<TabsList className="!h-auto w-full flex-wrap justify-start gap-1">
 					<TabsTrigger value="content" className="h-9 flex-none px-4">
@@ -1192,11 +1291,30 @@ export default function ResumeBuilderPage() {
 					>
 						<aside ref={navAsideRef} className="min-w-0 xl:shrink-0">
 							<div style={pinnedStyle}>
-								<div className="v2-panel p-2 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto">
-									<div className="px-2 pb-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground">
+								<div className="p-0 xl:v2-panel xl:p-2 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto">
+									<div className="hidden px-2 pb-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground xl:block">
 										CONTENT SECTIONS
 									</div>
-										<div className="flex min-w-0 flex-wrap gap-1 pb-1 xl:flex-col xl:flex-nowrap">
+									<div className="space-y-2 xl:hidden">
+										<Label htmlFor="resume-content-mobile-section">
+											Content section
+										</Label>
+										<select
+											id="resume-content-mobile-section"
+											value={activeContentSection}
+											onChange={(event) =>
+												scrollToContentSection(event.target.value)
+											}
+											className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+										>
+												{contentSectionNav.map((section) => (
+													<option key={section.id} value={section.id}>
+														{section.label}
+													</option>
+												))}
+										</select>
+									</div>
+									<div className="hidden min-w-0 flex-wrap gap-1 pb-1 xl:flex xl:flex-col xl:flex-nowrap">
 										{contentSectionNav.map((section) => (
 											<Button
 												key={section.id}

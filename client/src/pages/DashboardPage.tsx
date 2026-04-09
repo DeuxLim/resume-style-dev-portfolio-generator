@@ -25,8 +25,9 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { Circle, Eye, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { Circle, Eye, Layers, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 
 const versionBaseOptions: Array<{
 	value: PortfolioVersionBase;
@@ -111,6 +112,13 @@ export default function DashboardPage() {
 	const [previewModal, setPreviewModal] = useState<"portfolio" | "resume" | null>(
 		null,
 	);
+	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+	const [mobileVersionActionsId, setMobileVersionActionsId] = useState<number | null>(
+		null,
+	);
+	const [mobileResumeVersionActionsId, setMobileResumeVersionActionsId] = useState<
+		number | null
+	>(null);
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -335,6 +343,12 @@ export default function DashboardPage() {
 
 	const activeVersion = versionsQuery.data?.find((version) => version.isActive);
 	const activeResumeVersion = resumeVersionsQuery.data?.find((version) => version.isActive);
+	const selectedMobileVersion =
+		versionsQuery.data?.find((version) => version.id === mobileVersionActionsId) ?? null;
+	const selectedMobileResumeVersion =
+		resumeVersionsQuery.data?.find(
+			(version) => version.id === mobileResumeVersionActionsId,
+		) ?? null;
 	const resumePdfPreviewHref = `${apiBaseUrl}/resumes/me/pdf`;
 	const miniPreviewViewportClassName =
 		"overflow-hidden rounded-md border border-border/70";
@@ -487,7 +501,7 @@ export default function DashboardPage() {
 							</div>
 						) : null}
 					</div>
-					<CardAction className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+					<CardAction className="hidden w-full flex-col items-start gap-2 lg:flex lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
 						<Link
 							to="/dashboard/edit"
 							className={`${buttonVariants({ variant: "outline", size: "sm" })} w-auto justify-center`}
@@ -516,6 +530,17 @@ export default function DashboardPage() {
 							New resume draft
 						</Button>
 					</CardAction>
+					<div className="flex w-full items-center justify-end gap-2 lg:hidden">
+						<Button
+							type="button"
+							size="icon-sm"
+							variant="outline"
+							aria-label="Open dashboard actions"
+							onClick={() => setMobileActionsOpen(true)}
+						>
+							<MoreHorizontal className="size-4" />
+						</Button>
+					</div>
 				</CardHeader>
 			</Card>
 
@@ -530,7 +555,7 @@ export default function DashboardPage() {
 						<CardContent className="flex flex-col gap-2 pb-4 pt-0 md:flex-row md:flex-wrap md:items-start md:justify-start md:gap-2">
 							{publicLink ? (
 								<div
-									className="w-full max-w-[288px] space-y-1.5 md:w-[288px]"
+									className="w-full space-y-1.5 md:w-[288px] md:max-w-[288px]"
 									role="button"
 									tabIndex={0}
 									aria-label="Open portfolio preview modal"
@@ -562,7 +587,7 @@ export default function DashboardPage() {
 									</div>
 								</div>
 							) : (
-								<div className="w-full max-w-[288px] space-y-1.5 md:w-[288px]">
+								<div className="w-full space-y-1.5 md:w-[288px] md:max-w-[288px]">
 									<div className="text-sm font-medium leading-none">Portfolio</div>
 									<div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
 										Public URL is not available yet.
@@ -571,7 +596,7 @@ export default function DashboardPage() {
 							)}
 
 							<div
-								className="w-full max-w-[288px] space-y-1.5 md:w-[288px]"
+								className="w-full space-y-1.5 md:w-[288px] md:max-w-[288px]"
 								role="button"
 								tabIndex={0}
 								aria-label="Open resume preview modal"
@@ -639,7 +664,39 @@ export default function DashboardPage() {
 														: "N/A"}
 												</div>
 											</div>
-											<div className="mt-3 grid grid-cols-1 gap-2 sm:mt-0 sm:flex sm:flex-wrap sm:items-center">
+											<div className="mt-3 flex items-center justify-between gap-2 sm:hidden">
+												{version.isActive ? (
+													<span
+														className={cn(
+															buttonVariants({ variant: "secondary", size: "sm" }),
+															"pointer-events-none border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+														)}
+													>
+														<Circle className="size-2.5 fill-current text-emerald-500" />
+														Live
+													</span>
+												) : (
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={() => activateVersionMutation.mutate(version.id)}
+														disabled={activateVersionMutation.isPending}
+													>
+														Set live
+													</Button>
+												)}
+												<Button
+													type="button"
+													size="icon-sm"
+													variant="outline"
+													aria-label={`Open actions for ${version.name}`}
+													onClick={() => setMobileVersionActionsId(version.id)}
+												>
+													<MoreHorizontal className="size-4" />
+												</Button>
+											</div>
+											<div className="mt-3 hidden gap-2 sm:mt-0 sm:flex sm:flex-wrap sm:items-center">
 												{version.isActive ? (
 													<span
 														className={cn(
@@ -755,7 +812,41 @@ export default function DashboardPage() {
 														: "N/A"}
 												</div>
 											</div>
-											<div className="mt-3 grid grid-cols-1 gap-2 sm:mt-0 sm:flex sm:flex-wrap sm:items-center">
+											<div className="mt-3 flex items-center justify-between gap-2 sm:hidden">
+												{version.isActive ? (
+													<span
+														className={cn(
+															buttonVariants({ variant: "secondary", size: "sm" }),
+															"pointer-events-none border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+														)}
+													>
+														<Circle className="size-2.5 fill-current text-emerald-500" />
+														Live
+													</span>
+												) : (
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={() =>
+															activateResumeVersionMutation.mutate(version.id)
+														}
+														disabled={activateResumeVersionMutation.isPending}
+													>
+														Set live
+													</Button>
+												)}
+												<Button
+													type="button"
+													size="icon-sm"
+													variant="outline"
+													aria-label={`Open actions for ${version.name}`}
+													onClick={() => setMobileResumeVersionActionsId(version.id)}
+												>
+													<MoreHorizontal className="size-4" />
+												</Button>
+											</div>
+											<div className="mt-3 hidden gap-2 sm:mt-0 sm:flex sm:flex-wrap sm:items-center">
 												{version.isActive ? (
 													<span
 														className={cn(
@@ -1229,6 +1320,227 @@ export default function DashboardPage() {
 					</Card>
 				</div>
 			) : null}
+
+			<Sheet open={mobileActionsOpen} onOpenChange={setMobileActionsOpen}>
+				<SheetContent side="bottom" className="rounded-t-2xl p-0 lg:hidden">
+					<SheetHeader className="border-b border-border/60 px-5 py-4 text-left">
+						<SheetTitle>Dashboard actions</SheetTitle>
+					</SheetHeader>
+					<div className="space-y-2 px-4 py-4">
+						<Button
+							type="button"
+							variant="outline"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								openCreateModal();
+							}}
+						>
+							<Plus className="size-4" />
+							New portfolio draft
+						</Button>
+						<Link
+							to="/dashboard/edit"
+							className={`${buttonVariants({ variant: "outline" })} w-full justify-start`}
+						>
+							<Layers className="size-4" />
+							Open portfolio builder
+						</Link>
+						<Link
+							to="/dashboard/resume"
+							className={`${buttonVariants({ variant: "outline" })} w-full justify-start`}
+						>
+							Open resume builder
+						</Link>
+						<Button
+							type="button"
+							variant="outline"
+							className="w-full justify-start"
+							onClick={() => {
+								setMobileActionsOpen(false);
+								openResumeCreateModal();
+							}}
+						>
+							<Plus className="size-4" />
+							New resume draft
+						</Button>
+					</div>
+				</SheetContent>
+			</Sheet>
+
+			<Sheet
+				open={Boolean(selectedMobileVersion)}
+				onOpenChange={(open) => {
+					if (!open) setMobileVersionActionsId(null);
+				}}
+			>
+				<SheetContent side="bottom" className="rounded-t-2xl p-0 sm:hidden">
+					<SheetHeader className="border-b border-border/60 px-5 py-4 text-left">
+						<SheetTitle>{selectedMobileVersion?.name ?? "Version actions"}</SheetTitle>
+					</SheetHeader>
+					<div className="space-y-2 px-4 py-4">
+						{selectedMobileVersion && !selectedMobileVersion.isActive ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									activateVersionMutation.mutate(selectedMobileVersion.id);
+									setMobileVersionActionsId(null);
+								}}
+								disabled={activateVersionMutation.isPending}
+							>
+								Set live
+							</Button>
+						) : null}
+						{selectedMobileVersion ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									setVersionToRename({
+										id: selectedMobileVersion.id,
+										name: selectedMobileVersion.name,
+										nextName: selectedMobileVersion.name,
+										error: "",
+									});
+									setMobileVersionActionsId(null);
+								}}
+								disabled={renameVersionMutation.isPending}
+							>
+								<Pencil className="size-4" />
+								Rename
+							</Button>
+						) : null}
+						{selectedMobileVersion && !selectedMobileVersion.isActive ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start text-destructive hover:text-destructive"
+								onClick={() => {
+									setVersionToDelete({
+										id: selectedMobileVersion.id,
+										name: selectedMobileVersion.name,
+									});
+									setMobileVersionActionsId(null);
+								}}
+								disabled={deleteVersionMutation.isPending}
+							>
+								<Trash2 className="size-4" />
+								Delete
+							</Button>
+						) : null}
+						{selectedMobileVersion ? (
+							<Link
+								to={`/dashboard/edit?versionId=${selectedMobileVersion.id}&preview=1`}
+								className={`${buttonVariants({ variant: "outline" })} w-full justify-start`}
+								onClick={() => setMobileVersionActionsId(null)}
+							>
+								<Eye className="size-4" />
+								Preview
+							</Link>
+						) : null}
+						{selectedMobileVersion ? (
+							<Link
+								to={`/dashboard/edit?versionId=${selectedMobileVersion.id}`}
+								className={`${buttonVariants({ variant: "outline" })} w-full justify-start`}
+								onClick={() => setMobileVersionActionsId(null)}
+							>
+								Edit
+							</Link>
+						) : null}
+					</div>
+				</SheetContent>
+			</Sheet>
+
+			<Sheet
+				open={Boolean(selectedMobileResumeVersion)}
+				onOpenChange={(open) => {
+					if (!open) setMobileResumeVersionActionsId(null);
+				}}
+			>
+				<SheetContent side="bottom" className="rounded-t-2xl p-0 sm:hidden">
+					<SheetHeader className="border-b border-border/60 px-5 py-4 text-left">
+						<SheetTitle>
+							{selectedMobileResumeVersion?.name ?? "Resume version actions"}
+						</SheetTitle>
+					</SheetHeader>
+					<div className="space-y-2 px-4 py-4">
+						{selectedMobileResumeVersion && !selectedMobileResumeVersion.isActive ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									activateResumeVersionMutation.mutate(selectedMobileResumeVersion.id);
+									setMobileResumeVersionActionsId(null);
+								}}
+								disabled={activateResumeVersionMutation.isPending}
+							>
+								Set live
+							</Button>
+						) : null}
+						{selectedMobileResumeVersion ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									setResumeVersionToRename({
+										id: selectedMobileResumeVersion.id,
+										name: selectedMobileResumeVersion.name,
+										nextName: selectedMobileResumeVersion.name,
+										error: "",
+									});
+									setMobileResumeVersionActionsId(null);
+								}}
+								disabled={renameResumeVersionMutation.isPending}
+							>
+								<Pencil className="size-4" />
+								Rename
+							</Button>
+						) : null}
+						{selectedMobileResumeVersion && !selectedMobileResumeVersion.isActive ? (
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start text-destructive hover:text-destructive"
+								onClick={() => {
+									setResumeVersionToDelete({
+										id: selectedMobileResumeVersion.id,
+										name: selectedMobileResumeVersion.name,
+									});
+									setMobileResumeVersionActionsId(null);
+								}}
+								disabled={deleteResumeVersionMutation.isPending}
+							>
+								<Trash2 className="size-4" />
+								Delete
+							</Button>
+						) : null}
+						{selectedMobileResumeVersion ? (
+							<Link
+								to={`/dashboard/resume?versionId=${selectedMobileResumeVersion.id}&preview=1`}
+								className={`${buttonVariants({ variant: "outline" })} w-full justify-start`}
+								onClick={() => setMobileResumeVersionActionsId(null)}
+							>
+								<Eye className="size-4" />
+								Preview
+							</Link>
+						) : null}
+						{selectedMobileResumeVersion ? (
+							<Link
+								to={`/dashboard/resume?versionId=${selectedMobileResumeVersion.id}`}
+								className={`${buttonVariants({ variant: "outline" })} w-full justify-start`}
+								onClick={() => setMobileResumeVersionActionsId(null)}
+							>
+								Edit
+							</Link>
+						) : null}
+					</div>
+				</SheetContent>
+			</Sheet>
 		</main>
 	);
 }
