@@ -23,6 +23,7 @@ const routes = createBrowserRouter([
 			{ path: "dashboard/edit", Component: PortfolioEditorPage },
 			{ path: "dashboard/create", Component: PortfolioEditorPage },
 			{ path: "dashboard/resume", Component: ResumeBuilderPage },
+			{ path: "resume", Component: ResumeBuilderPage },
 			{ path: "guide", Component: UserGuidePage },
 		],
 	},

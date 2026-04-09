@@ -59,7 +59,8 @@ export default function AppLayout() {
 		location.pathname.startsWith("/dashboard/edit") ||
 		location.pathname.startsWith("/dashboard/create");
 	const isResumeBuilderActive =
-		location.pathname.startsWith("/dashboard/resume");
+		location.pathname.startsWith("/dashboard/resume") ||
+		location.pathname.startsWith("/resume");
 	const isHomeActive = location.pathname === "/";
 	const isSampleActive = location.pathname.startsWith("/sample");
 	const isGuideActive = location.pathname.startsWith("/guide");
@@ -103,6 +104,11 @@ export default function AppLayout() {
 				active: isHomeActive,
 			},
 			{
+				to: "/resume",
+				label: "Resume Builder",
+				active: location.pathname.startsWith("/resume"),
+			},
+			{
 				to: "/sample",
 				label: "Sample",
 				active: isSampleActive,
@@ -113,7 +119,7 @@ export default function AppLayout() {
 				active: isGuideActive,
 			},
 		],
-		[isGuideActive, isHomeActive, isSampleActive],
+		[isGuideActive, isHomeActive, isSampleActive, location.pathname],
 	);
 
 	const mobileDockItems = isAuthed
@@ -149,6 +155,12 @@ export default function AppLayout() {
 					label: "Home",
 					icon: Sparkles,
 					active: isHomeActive,
+				},
+				{
+					to: "/resume",
+					label: "Resume",
+					icon: FileText,
+					active: location.pathname.startsWith("/resume"),
 				},
 				{
 					to: "/sample",
@@ -190,7 +202,7 @@ export default function AppLayout() {
 				)}
 			>
 				<header className={cn("app-layout-header sticky top-3 z-40", headerSpacingClass)}>
-					<div className="v2-shell-header px-3 py-3 sm:px-4">
+					<div className="v2-shell-header v2-top-nav-glass px-3 py-3 sm:px-4">
 						<div className="flex items-center gap-2 sm:gap-3">
 							<Link
 								to="/"
@@ -288,6 +300,21 @@ export default function AppLayout() {
 											Create account
 										</Link>
 									</div>
+								) : null}
+								{isAuthed ? (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="hidden lg:inline-flex"
+										onClick={() => logoutMutation.mutate()}
+										disabled={logoutMutation.isPending}
+									>
+										<LogOut className="size-4" />
+										{logoutMutation.isPending
+											? "Logging out..."
+											: "Log out"}
+									</Button>
 								) : null}
 
 								<div className="hidden lg:block">

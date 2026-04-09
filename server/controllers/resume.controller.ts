@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { defaultResumeLayout } from "../../shared/defaults/resume.js";
+import { buildStarterResume, defaultResumeLayout } from "../../shared/defaults/resume.js";
 import { normalizeResumeContent, normalizeResumeLayout, validateResume } from "../../shared/lib/resume.js";
 import type {
 	ResumeRecord,
@@ -16,6 +16,7 @@ import {
 	getResumePdfByUserId,
 	getResumePdfByVersionId,
 	getResumePdfByUsername,
+	getResumePdfByRecord,
 	listResumeVersionsByUserId,
 	renameResumeVersionByUserId,
 	syncResumeToPortfolioByUserId,
@@ -319,6 +320,18 @@ const downloadResumePdf = async (req: Request, res: Response) => {
 	sendPdfResponse(req, res, result, username);
 };
 
+const downloadGuestResumePdf = async (req: Request, res: Response) => {
+	const fallback = buildStarterResume({
+		fullName: "",
+		email: "",
+		location: "",
+		headline: "",
+	});
+	const payload = sanitizeResume(req.body?.resume, fallback);
+	const result = await getResumePdfByRecord(payload);
+	sendPdfResponse(req, res, result, "resume");
+};
+
 const ResumeController = {
 	getMyResume,
 	updateMyResume,
@@ -334,6 +347,7 @@ const ResumeController = {
 	downloadMyResumePdf,
 	downloadMyResumeVersionPdf,
 	downloadResumePdf,
+	downloadGuestResumePdf,
 };
 
 export default ResumeController;

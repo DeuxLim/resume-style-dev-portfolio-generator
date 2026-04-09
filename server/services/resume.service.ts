@@ -834,6 +834,15 @@ export const getResumePdfByVersionId = async (
 	return { validation, doc, resume: detail.resume };
 };
 
+export const getResumePdfByRecord = async (resume: ResumeRecord) => {
+	const validation = validateResume(resume);
+	if (!validation.canExportPdf) {
+		return { validation, doc: null, resume };
+	}
+	const doc = renderResumePdf(resume, validation);
+	return { validation, doc, resume };
+};
+
 export const getResumeValidationByUserId = async (userId: number) => {
 	const resume = await getOrCreateResumeByUserId(userId);
 	if (!resume) {

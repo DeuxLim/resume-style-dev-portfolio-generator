@@ -57,6 +57,7 @@ ResumeRouter.post(
 	requireAuth,
 	ResumeController.syncMyResumeToPortfolio,
 );
+ResumeRouter.post("/guest/pdf", ResumeController.downloadGuestResumePdf);
 ResumeRouter.get("/:username/pdf", ResumeController.downloadResumePdf);
 
 export default ResumeRouter;

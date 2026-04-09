@@ -6,12 +6,13 @@ import {
 	type ChangeEvent,
 	type PointerEvent as ReactPointerEvent,
 } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiBaseUrl } from "@/lib/axios.client";
 import type { AxiosError } from "axios";
 import { useSession } from "@/hooks/useSession";
 import { usePinnedSidebar } from "@/hooks/usePinnedSidebar";
+import { buildStarterResume } from "../../../shared/defaults/resume";
 import {
 	cloneResume,
 	createResumeListItem,
@@ -186,11 +187,48 @@ const parseTextareaLines = (value: string) =>
 		.map((entry) => entry.trim())
 		.filter(Boolean);
 
+const buildGuestResume = (): ResumeRecord => {
+	const starter = buildStarterResume({
+		fullName: "",
+		email: "",
+		location: "",
+		headline: "",
+	});
+	return {
+		...starter,
+		content: {
+			...starter.content,
+			header: {
+				...starter.content.header,
+				fullName: "",
+				headline: "",
+				location: "",
+				email: "",
+			},
+			summary: "",
+			experience: [],
+			education: [],
+			skills: [],
+			projects: [],
+			certifications: [],
+			awards: [],
+			volunteer: [],
+			languages: [],
+			publications: [],
+			custom: [],
+		},
+	};
+};
+
 export default function ResumeBuilderPage() {
+	const location = useLocation();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const isAuthed = Boolean(sessionQuery.data?.user);
+	const isGuestRoute = location.pathname.startsWith("/resume");
+	const isGuestMode = isGuestRoute || (sessionQuery.isSuccess && !sessionQuery.data?.user);
 	const selectedVersionId = Number(searchParams.get("versionId"));
 	const hasSelectedVersionId =
 		Number.isFinite(selectedVersionId) && selectedVersionId > 0;
@@ -211,6 +249,8 @@ export default function ResumeBuilderPage() {
 	const [previewOpen, setPreviewOpen] = useState(() => openedFromDashboardPreview);
 	const [isValidationSummaryExpanded, setIsValidationSummaryExpanded] = useState(false);
 	const [pdfPreviewNonce, setPdfPreviewNonce] = useState(0);
+	const [guestPdfPreviewUrl, setGuestPdfPreviewUrl] = useState<string>("");
+	const [guestPreviewAttempted, setGuestPreviewAttempted] = useState(false);
 	const [floatingPreviewPosition, setFloatingPreviewPosition] = useState<{
 		x: number;
 		y: number;
@@ -223,6 +263,11 @@ export default function ResumeBuilderPage() {
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
+	const [skillsDraftInput, setSkillsDraftInput] = useState("");
+	const [languagesDraftInput, setLanguagesDraftInput] = useState("");
+	const [experienceBulletsDraftById, setExperienceBulletsDraftById] = useState<
+		Record<string, string>
+	>({});
 	const [versionToCreate, setVersionToCreate] = useState<{
 		name: string;
 		base: ResumeVersionBase;
@@ -255,10 +300,19 @@ export default function ResumeBuilderPage() {
 	}, [toast]);
 
 	useEffect(() => {
-		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
-			navigate("/login");
+		return () => {
+			if (guestPdfPreviewUrl) {
+				window.URL.revokeObjectURL(guestPdfPreviewUrl);
+			}
+		};
+	}, [guestPdfPreviewUrl]);
+
+	useEffect(() => {
+		if (!isGuestMode) return;
+		if (hasSelectedVersionId || draftMode) {
+			navigate("/resume", { replace: true });
 		}
-	}, [navigate, sessionQuery.data, sessionQuery.isSuccess]);
+	}, [draftMode, hasSelectedVersionId, isGuestMode, navigate]);
 
 	const resumeQuery = useQuery({
 		queryKey: ["my-resume"],
@@ -268,7 +322,7 @@ export default function ResumeBuilderPage() {
 			);
 			return data;
 		},
-		enabled: Boolean(sessionQuery.data?.user),
+		enabled: isAuthed,
 	});
 
 	const versionsQuery = useQuery({
@@ -279,7 +333,7 @@ export default function ResumeBuilderPage() {
 			);
 			return data.versions;
 		},
-		enabled: Boolean(sessionQuery.data?.user),
+		enabled: isAuthed,
 	});
 
 	const versionDetailQuery = useQuery({
@@ -290,7 +344,7 @@ export default function ResumeBuilderPage() {
 			);
 			return data;
 		},
-		enabled: Boolean(sessionQuery.data?.user) && hasSelectedVersionId,
+		enabled: isAuthed && hasSelectedVersionId,
 	});
 
 	const versionPreviewQuery = useQuery({
@@ -301,7 +355,7 @@ export default function ResumeBuilderPage() {
 			);
 			return data.resume;
 		},
-		enabled: Boolean(sessionQuery.data?.user) && draftMode,
+		enabled: isAuthed && draftMode,
 	});
 
 	const activeVersion = versionsQuery.data?.find((version) => version.isActive) ?? null;
@@ -312,6 +366,29 @@ export default function ResumeBuilderPage() {
 	}, [versionDetailQuery.data?.version?.name]);
 
 	useEffect(() => {
+		if (!resume) return;
+		setSkillsDraftInput(resume.content.skills.join(", "));
+		setLanguagesDraftInput(resume.content.languages.join(", "));
+	}, [resume?.content.skills, resume]);
+
+	useEffect(() => {
+		if (!resume) return;
+		setExperienceBulletsDraftById((current) => {
+			const next: Record<string, string> = {};
+			for (const item of resume.content.experience) {
+				next[item.id] = current[item.id] ?? item.bullets.join("\n");
+			}
+			return next;
+		});
+	}, [resume?.content.experience, resume]);
+
+	useEffect(() => {
+		if (isGuestMode) {
+			if (!resume) {
+				setResume(buildGuestResume());
+			}
+			return;
+		}
 		const sourceKey = hasSelectedVersionId
 			? `version:${selectedVersionId}`
 			: draftMode
@@ -356,6 +433,7 @@ export default function ResumeBuilderPage() {
 		selectedVersionId,
 		versionDetailQuery.data,
 		versionPreviewQuery.data,
+		isGuestMode,
 	]);
 
 	useEffect(() => {
@@ -415,6 +493,13 @@ export default function ResumeBuilderPage() {
 	);
 
 	const persistResumeWithContext = async (payload: ResumeRecord) => {
+		if (isGuestMode) {
+			return {
+				resume: payload,
+				savedDraft: false,
+				createdVersionId: null as number | null,
+			};
+		}
 		if (draftMode) {
 			if (!draftName) {
 				throw new Error("Version name is required.");
@@ -462,11 +547,11 @@ export default function ResumeBuilderPage() {
 	};
 
 	const saveMutation = useMutation({
-		mutationFn: async () => {
-			if (!resume) {
+		mutationFn: async (payload?: ResumeRecord) => {
+			if (!resume && !payload) {
 				throw new Error("Resume data is not ready.");
 			}
-			return persistResumeWithContext(cloneResume(resume));
+			return persistResumeWithContext(cloneResume(payload ?? resume!));
 		},
 		onSuccess: async (result) => {
 			setToast({
@@ -477,8 +562,10 @@ export default function ResumeBuilderPage() {
 			});
 			setResume(cloneResume(result.resume));
 			setPdfPreviewNonce((current) => current + 1);
-			await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
-			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			if (isAuthed) {
+				await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
+				await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			}
 			if (result.createdVersionId) {
 				navigate(`/dashboard/resume?versionId=${result.createdVersionId}`, {
 					replace: true,
@@ -514,8 +601,10 @@ export default function ResumeBuilderPage() {
 		onSuccess: async (result) => {
 			setResume(cloneResume(result.resume));
 			setPdfPreviewNonce((current) => current + 1);
-			await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
-			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			if (isAuthed) {
+				await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
+				await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			}
 			if (result.createdVersionId) {
 				navigate(`/dashboard/resume?versionId=${result.createdVersionId}`, {
 					replace: true,
@@ -611,6 +700,125 @@ export default function ResumeBuilderPage() {
 		},
 	});
 
+	const setGuestPreviewUrlFromBlob = (blob: Blob) => {
+		const previewUrl = window.URL.createObjectURL(blob);
+		setGuestPdfPreviewUrl((current) => {
+			if (current) {
+				window.URL.revokeObjectURL(current);
+			}
+			return previewUrl;
+		});
+		return previewUrl;
+	};
+
+	const requestGuestPdfBlob = async (payload: ResumeRecord) => {
+		const response = await api.post("/resumes/guest/pdf", { resume: payload }, {
+			responseType: "blob",
+		});
+		return new Blob([response.data], { type: "application/pdf" });
+	};
+
+	const downloadGuestPdfMutation = useMutation({
+		mutationFn: requestGuestPdfBlob,
+		onSuccess: (blob) => {
+			const previewUrl = setGuestPreviewUrlFromBlob(blob);
+			const anchor = document.createElement("a");
+			anchor.href = previewUrl;
+			anchor.download = "resume.pdf";
+			document.body.append(anchor);
+			anchor.click();
+			anchor.remove();
+			setToast({
+				type: "success",
+				message: "PDF generated. Nothing was saved.",
+			});
+		},
+		onError: async (error) => {
+			const axiosError = error as AxiosError<Blob>;
+			let message = "Failed to generate PDF.";
+			const payload = axiosError.response?.data;
+			if (payload instanceof Blob) {
+				try {
+					const text = await payload.text();
+					const parsed = JSON.parse(text) as { message?: string };
+					if (parsed?.message) {
+						message = parsed.message;
+					}
+				} catch {
+					// Ignore parse failures and keep generic fallback.
+				}
+			}
+			setToast({ type: "error", message });
+		},
+	});
+
+	const refreshGuestPreviewMutation = useMutation({
+		mutationFn: requestGuestPdfBlob,
+		onSuccess: (blob) => {
+			setGuestPreviewUrlFromBlob(blob);
+		},
+		onError: async (error) => {
+			const axiosError = error as AxiosError<Blob>;
+			let message = "Failed to refresh preview.";
+			const payload = axiosError.response?.data;
+			if (payload instanceof Blob) {
+				try {
+					const text = await payload.text();
+					const parsed = JSON.parse(text) as { message?: string };
+					if (parsed?.message) {
+						message = parsed.message;
+					}
+				} catch {
+					// Keep fallback message for non-JSON payloads.
+				}
+			}
+			setToast({ type: "error", message });
+		},
+	});
+
+	const buildResumeWithDraftInputs = (source: ResumeRecord): ResumeRecord => {
+		const cloned = cloneResume(source);
+		return {
+			...cloned,
+			content: {
+				...cloned.content,
+				skills: skillsDraftInput
+					.split(",")
+					.map((entry) => entry.trim())
+					.filter(Boolean),
+				languages: languagesDraftInput
+					.split(",")
+					.map((entry) => entry.trim())
+					.filter(Boolean),
+				experience: cloned.content.experience.map((entry) => ({
+					...entry,
+					bullets: parseTextareaLines(
+						experienceBulletsDraftById[entry.id] ?? entry.bullets.join("\n"),
+					),
+				})),
+			},
+		};
+	};
+
+	const triggerPrimaryAction = () => {
+		if (!resume) return;
+		const nextResume = buildResumeWithDraftInputs(resume);
+		setResume(nextResume);
+		if (isGuestMode) {
+			downloadGuestPdfMutation.mutate(nextResume);
+			return;
+		}
+		saveMutation.mutate(nextResume);
+	};
+
+	const triggerGuestPreviewRefresh = () => {
+		if (!resume || !isGuestMode) return;
+		const nextResume = buildResumeWithDraftInputs(resume);
+		setResume(nextResume);
+		setGuestPreviewAttempted(true);
+		refreshGuestPreviewMutation.mutate(nextResume);
+	};
+
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			const isMeta = event.ctrlKey || event.metaKey;
@@ -619,12 +827,17 @@ export default function ResumeBuilderPage() {
 			const isPreviewKey = isMeta && event.shiftKey && key === "p";
 			if (isSaveKey) {
 				event.preventDefault();
-				if (!resume || saveMutation.isPending) return;
-				saveMutation.mutate();
+				if (
+					!resume ||
+					saveMutation.isPending ||
+					downloadGuestPdfMutation.isPending
+				) return;
+				triggerPrimaryAction();
 				return;
 			}
 			if (isPreviewKey) {
 				event.preventDefault();
+				if (isGuestMode) return;
 				setPreviewOpen(true);
 				return;
 			}
@@ -645,7 +858,15 @@ export default function ResumeBuilderPage() {
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [resume, previewOpen, saveMutation, openedFromDashboardPreview, navigate]);
+	}, [
+		resume,
+		previewOpen,
+		isGuestMode,
+		saveMutation,
+		downloadGuestPdfMutation.isPending,
+		openedFromDashboardPreview,
+		navigate,
+	]);
 
 	useEffect(() => {
 		if (previewOpen || floatingPreviewPosition) return;
@@ -774,6 +995,19 @@ export default function ResumeBuilderPage() {
 		return () => observer.disconnect();
 	}, [activeTab, contentSectionNav]);
 
+	useEffect(() => {
+		if (!isGuestMode || activeTab !== "preview") return;
+		if (guestPdfPreviewUrl || refreshGuestPreviewMutation.isPending || guestPreviewAttempted) return;
+		setGuestPreviewAttempted(true);
+		triggerGuestPreviewRefresh();
+	}, [
+		activeTab,
+		guestPdfPreviewUrl,
+		guestPreviewAttempted,
+		isGuestMode,
+		refreshGuestPreviewMutation.isPending,
+	]);
+
 	if (
 		sessionQuery.isLoading ||
 		resumeQuery.isLoading ||
@@ -786,19 +1020,23 @@ export default function ResumeBuilderPage() {
 	if (!resume) return null;
 
 	const selectedVersionSummary = versionDetailQuery.data?.version ?? null;
-	const editingVersion = draftMode
+	const editingVersion = isGuestMode
+		? null
+		: draftMode
 		? null
 		: hasSelectedVersionId
 			? selectedVersionSummary
 			: activeVersion;
-	const canManageSelectedDraftVersion = Boolean(!draftMode && editingVersion);
+	const canManageSelectedDraftVersion = Boolean(!isGuestMode && !draftMode && editingVersion);
 	const editingVersionName = draftMode
 		? draftName || "Untitled Draft"
-		: editingVersion?.name ?? "Version";
+		: editingVersion?.name ?? (isGuestMode ? "Quick Resume" : "Version");
 	const editingVersionIsLive = draftMode ? false : Boolean(editingVersion?.isActive);
-	const modeTitle = draftMode ? "Creating" : "Editing";
+	const modeTitle = isGuestMode ? "Quick Resume Builder" : draftMode ? "Creating" : "Editing";
 	const modeBadgeLabel = draftMode
 		? "Draft (Unsaved)"
+		: isGuestMode
+			? "Guest Session"
 		: editingVersionIsLive
 			? "Live"
 			: "Draft";
@@ -836,11 +1074,16 @@ export default function ResumeBuilderPage() {
 	const versionPdfPath = hasSelectedVersionId
 		? `/resumes/me/versions/${selectedVersionId}/pdf`
 		: "/resumes/me/pdf";
-	const pdfDownloadHref = `${apiBaseUrl}${versionPdfPath}?download=1`;
+	const pdfDownloadHref = !isAuthed || isGuestMode
+		? ""
+		: `${apiBaseUrl}${versionPdfPath}?download=1`;
 	const pdfInlineVersion = resume.updatedAt ?? `${resume.templateKey}-${pdfPreviewNonce}`;
-	const pdfInlineHref = `${apiBaseUrl}${versionPdfPath}?v=${encodeURIComponent(
-		pdfInlineVersion,
-	)}&template=${encodeURIComponent(resume.templateKey)}&nonce=${pdfPreviewNonce}`;
+	const pdfInlineHref = !isAuthed || isGuestMode
+		? ""
+		: `${apiBaseUrl}${versionPdfPath}?v=${encodeURIComponent(
+				pdfInlineVersion,
+		  )}&template=${encodeURIComponent(resume.templateKey)}&nonce=${pdfPreviewNonce}`;
+	const effectivePdfInlineHref = isGuestMode ? guestPdfPreviewUrl : pdfInlineHref;
 	const visibleSectionOrder = resume.layout.sectionOrder.filter((section) =>
 		section === "header" ? true : Boolean(resume.layout.visibility[section]),
 	);
@@ -850,6 +1093,18 @@ export default function ResumeBuilderPage() {
 		const nextTemplateKey: ResumeTemplateKey =
 			event.target.value === "harvard_classic_v1" ? "harvard_classic_v1" : "ats_classic_v1";
 		if (resume.templateKey === nextTemplateKey) return;
+		if (isGuestMode) {
+			setResume((current) =>
+				current
+					? {
+							...current,
+							templateKey: nextTemplateKey,
+					  }
+					: current,
+			);
+			setPdfPreviewNonce((current) => current + 1);
+			return;
+		}
 		const previousTemplateKey = resume.templateKey;
 		const nextResume: ResumeRecord = {
 			...resume,
@@ -1069,11 +1324,11 @@ export default function ResumeBuilderPage() {
 			) : null}
 			<Card className="v2-panel">
 				<CardHeader className="gap-3">
-					<div className="space-y-1.5">
-						<div className="flex flex-wrap items-center gap-2">
-							<CardTitle className="text-2xl sm:text-3xl">
-								{modeTitle}: {editingVersionName}
-							</CardTitle>
+						<div className="space-y-1.5">
+							<div className="flex flex-wrap items-center gap-2">
+								<CardTitle className="text-2xl sm:text-3xl">
+									{isGuestMode ? modeTitle : `${modeTitle}: ${editingVersionName}`}
+								</CardTitle>
 							<Badge
 								variant={editingVersionIsLive ? "secondary" : "outline"}
 								className={
@@ -1084,37 +1339,41 @@ export default function ResumeBuilderPage() {
 							>
 								{modeBadgeLabel}
 							</Badge>
+							</div>
+							<CardDescription>
+								{isGuestMode
+									? "Build a resume and download instantly. Guest mode does not save drafts or versions."
+									: "Edit structured resume content, tune section visibility, and validate against export rules in real time."}
+							</CardDescription>
 						</div>
-						<CardDescription>
-							Edit structured resume content, tune section visibility, and validate against export rules in real time.
-						</CardDescription>
-					</div>
-					<CardAction className="hidden w-full flex-col items-start gap-2 lg:flex lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							className="inline-flex"
-							onClick={openCreateVersionModal}
-						>
-							New draft version
-						</Button>
-						{canManageSelectedDraftVersion ? (
-							<Button
-								type="button"
-								size="sm"
+						<CardAction className="hidden w-full flex-col items-start gap-2 lg:flex lg:w-auto lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+							{!isGuestMode ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="inline-flex"
+									onClick={openCreateVersionModal}
+								>
+									New draft version
+								</Button>
+							) : null}
+							{!isGuestMode && canManageSelectedDraftVersion ? (
+								<Button
+									type="button"
+									size="sm"
 								variant="outline"
 								className="inline-flex"
 								onClick={() => setRenameDialogOpen(true)}
 							>
 								<Pencil className="size-4" />
-								Rename
-							</Button>
-						) : null}
-						{canManageSelectedDraftVersion ? (
-							<Button
-								type="button"
-								size="sm"
+									Rename
+								</Button>
+							) : null}
+							{!isGuestMode && canManageSelectedDraftVersion ? (
+								<Button
+									type="button"
+									size="sm"
 								variant="outline"
 								className="inline-flex text-destructive hover:text-destructive"
 								onClick={() => setDeleteDialogOpen(true)}
@@ -1124,33 +1383,43 @@ export default function ResumeBuilderPage() {
 								Delete
 							</Button>
 						) : null}
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							className="inline-flex"
-							onClick={() => setPreviewOpen(true)}
-						>
-							<Eye className="size-4" />
-							Open Preview
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							className="inline-flex"
-							onClick={() => saveMutation.mutate()}
-							disabled={saveMutation.isPending}
-						>
-							<Save className="size-4" />
-							{saveMutation.isPending ? "Saving..." : "Save changes"}
-						</Button>
-						<a href={pdfDownloadHref} className="inline-flex">
-							<Button type="button" size="sm" variant="secondary" className="inline-flex">
-								<Download className="size-4" />
-								Download PDF
+							{!isGuestMode ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="inline-flex"
+									onClick={() => setPreviewOpen(true)}
+								>
+									<Eye className="size-4" />
+									Open Preview
+								</Button>
+							) : null}
+							<Button
+								type="button"
+								size="sm"
+								className="inline-flex"
+								onClick={triggerPrimaryAction}
+								disabled={saveMutation.isPending || downloadGuestPdfMutation.isPending}
+							>
+								<Save className="size-4" />
+								{isGuestMode
+									? downloadGuestPdfMutation.isPending
+										? "Generating..."
+										: "Generate PDF"
+									: saveMutation.isPending
+										? "Saving..."
+										: "Save changes"}
 							</Button>
-						</a>
-					</CardAction>
+							{!isGuestMode ? (
+								<a href={pdfDownloadHref} className="inline-flex">
+									<Button type="button" size="sm" variant="secondary" className="inline-flex">
+										<Download className="size-4" />
+										Download PDF
+									</Button>
+								</a>
+							) : null}
+						</CardAction>
 					<div className="flex w-full items-center justify-end gap-2 lg:hidden">
 						<Button
 							type="button"
@@ -1164,11 +1433,15 @@ export default function ResumeBuilderPage() {
 					</div>
 				</CardHeader>
 			</Card>
-			{draftMode ? (
-				<div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
-					You are creating a draft. This is not public yet until you save and set a version live.
-				</div>
-			) : editingVersion && !editingVersionIsLive ? (
+				{isGuestMode ? (
+					<div className="rounded-md border border-sky-500/35 bg-sky-500/10 px-3 py-2 text-sm text-sky-900 dark:text-sky-100">
+						Guest mode is one-time only. Resume drafts and versions are not saved.
+					</div>
+				) : draftMode ? (
+					<div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+						You are creating a draft. This is not public yet until you save and set a version live.
+					</div>
+				) : !isGuestMode && editingVersion && !editingVersionIsLive ? (
 				<div className="flex flex-col items-start justify-between gap-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center">
 					<div className="text-sm text-amber-800 dark:text-amber-200">
 						You are editing a draft version. Public resume PDF still shows the current live version.
@@ -1192,45 +1465,55 @@ export default function ResumeBuilderPage() {
 						<SheetTitle>Resume actions</SheetTitle>
 					</SheetHeader>
 					<div className="space-y-2 px-4 py-4">
-						<Button
-							type="button"
-							className="w-full justify-start"
-							onClick={() => {
-								setMobileActionsOpen(false);
-								saveMutation.mutate();
-							}}
-							disabled={saveMutation.isPending}
-						>
-							<Save className="size-4" />
-							{saveMutation.isPending ? "Saving..." : "Save changes"}
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className="w-full justify-start"
-							onClick={() => {
-								setMobileActionsOpen(false);
-								setPreviewOpen(true);
-							}}
-						>
-							<Eye className="size-4" />
-							Open Preview
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							className="w-full justify-start"
-							onClick={() => {
-								setMobileActionsOpen(false);
-								openCreateVersionModal();
-							}}
-						>
-							New draft version
-						</Button>
-						{canManageSelectedDraftVersion ? (
 							<Button
 								type="button"
-								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									setMobileActionsOpen(false);
+									triggerPrimaryAction();
+								}}
+								disabled={saveMutation.isPending || downloadGuestPdfMutation.isPending}
+							>
+								<Save className="size-4" />
+								{isGuestMode
+									? downloadGuestPdfMutation.isPending
+										? "Generating..."
+										: "Generate PDF"
+									: saveMutation.isPending
+										? "Saving..."
+										: "Save changes"}
+							</Button>
+							{!isGuestMode ? (
+								<Button
+									type="button"
+									variant="outline"
+									className="w-full justify-start"
+									onClick={() => {
+										setMobileActionsOpen(false);
+										setPreviewOpen(true);
+									}}
+								>
+									<Eye className="size-4" />
+									Open Preview
+								</Button>
+							) : null}
+							{!isGuestMode ? (
+								<Button
+									type="button"
+									variant="outline"
+									className="w-full justify-start"
+									onClick={() => {
+										setMobileActionsOpen(false);
+										openCreateVersionModal();
+									}}
+								>
+									New draft version
+								</Button>
+							) : null}
+							{!isGuestMode && canManageSelectedDraftVersion ? (
+								<Button
+									type="button"
+									variant="outline"
 								className="w-full justify-start"
 								onClick={() => {
 									setMobileActionsOpen(false);
@@ -1238,13 +1521,13 @@ export default function ResumeBuilderPage() {
 								}}
 							>
 								<Pencil className="size-4" />
-								Rename version
-							</Button>
-						) : null}
-						{canManageSelectedDraftVersion ? (
-							<Button
-								type="button"
-								variant="outline"
+									Rename version
+								</Button>
+							) : null}
+							{!isGuestMode && canManageSelectedDraftVersion ? (
+								<Button
+									type="button"
+									variant="outline"
 								className="w-full justify-start text-destructive hover:text-destructive"
 								onClick={() => {
 									setMobileActionsOpen(false);
@@ -1253,20 +1536,22 @@ export default function ResumeBuilderPage() {
 								disabled={Boolean(editingVersion?.isActive)}
 							>
 								<Trash2 className="size-4" />
-								Delete version
-							</Button>
-						) : null}
-						<a href={pdfDownloadHref}>
-							<Button
-								type="button"
-								variant="secondary"
-								className="w-full justify-start"
-								onClick={() => setMobileActionsOpen(false)}
-							>
-								<Download className="size-4" />
-								Download PDF
-							</Button>
-						</a>
+									Delete version
+								</Button>
+							) : null}
+							{!isGuestMode ? (
+								<a href={pdfDownloadHref}>
+									<Button
+										type="button"
+										variant="secondary"
+										className="w-full justify-start"
+										onClick={() => setMobileActionsOpen(false)}
+									>
+										<Download className="size-4" />
+										Download PDF
+									</Button>
+								</a>
+							) : null}
 					</div>
 				</SheetContent>
 			</Sheet>
@@ -1276,13 +1561,13 @@ export default function ResumeBuilderPage() {
 					<TabsTrigger value="content" className="h-9 flex-none px-4">
 						Content
 					</TabsTrigger>
-					<TabsTrigger value="layout" className="h-9 flex-none px-4">
-						Layout
-					</TabsTrigger>
-					<TabsTrigger value="preview" className="h-9 flex-none px-4">
-						Preview
-					</TabsTrigger>
-				</TabsList>
+						<TabsTrigger value="layout" className="h-9 flex-none px-4">
+							Layout
+						</TabsTrigger>
+						<TabsTrigger value="preview" className="h-9 flex-none px-4">
+							Preview
+						</TabsTrigger>
+					</TabsList>
 
 				<TabsContent value="content" className="min-w-0 space-y-4">
 					<div
@@ -1399,34 +1684,35 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-skills" className={contentSectionCardClassName}>
-						<CardHeader>
-							<CardTitle className="text-lg">Skills (comma separated)</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<Textarea
-								rows={3}
-								value={resume.content.skills.join(", ")}
-								onChange={(event) =>
-									setResume((current) =>
-										current
-											? {
-													...current,
-													content: {
-														...current.content,
-														skills: event.target.value
-															.split(",")
-															.map((entry) => entry.trim())
-															.filter(Boolean),
-													},
-											  }
-											: current,
-									)
-								}
-							/>
-							{renderInlineWarnings(skillsWarnings)}
-						</CardContent>
-					</Card>
+						<Card id="resume-content-skills" className={contentSectionCardClassName}>
+							<CardHeader>
+								<CardTitle className="text-lg">Skills (comma separated)</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<Textarea
+									rows={3}
+									value={skillsDraftInput}
+									onChange={(event) => setSkillsDraftInput(event.target.value)}
+									onBlur={() =>
+										setResume((current) =>
+											current
+												? {
+														...current,
+														content: {
+															...current.content,
+															skills: skillsDraftInput
+																.split(",")
+																.map((entry) => entry.trim())
+																.filter(Boolean),
+														},
+												  }
+												: current,
+										)
+									}
+								/>
+								{renderInlineWarnings(skillsWarnings)}
+							</CardContent>
+						</Card>
 
 					<Card id="resume-content-experience" className={contentSectionCardClassName}>
 						<CardHeader className="flex-row items-center justify-between">
@@ -1561,34 +1847,40 @@ export default function ResumeBuilderPage() {
 											}
 										/>
 									</div>
-									<Textarea
-										rows={4}
-										placeholder="One bullet per line"
-										value={item.bullets.join("\n")}
-										onChange={(event) =>
-											setResume((current) =>
-												current
-													? {
-															...current,
-															content: {
-																...current.content,
-																experience: current.content.experience.map((entry, entryIndex) =>
-																	entryIndex === index
-																		? {
-																				...entry,
-																				bullets: event.target.value
-																					.split("\n")
-																					.map((line) => line.trim())
-																					.filter(Boolean),
-																		  }
-																		: entry,
-																),
-															},
-													  }
-													: current,
-											)
-										}
-									/>
+										<Textarea
+											rows={4}
+											placeholder="One bullet per line"
+											value={experienceBulletsDraftById[item.id] ?? item.bullets.join("\n")}
+											onChange={(event) =>
+												setExperienceBulletsDraftById((current) => ({
+													...current,
+													[item.id]: event.target.value,
+												}))
+											}
+											onBlur={() =>
+												setResume((current) =>
+													current
+														? {
+																...current,
+																content: {
+																	...current.content,
+																	experience: current.content.experience.map((entry, entryIndex) =>
+																		entryIndex === index
+																			? {
+																					...entry,
+																					bullets: parseTextareaLines(
+																						experienceBulletsDraftById[item.id] ??
+																							entry.bullets.join("\n"),
+																					),
+																			  }
+																			: entry,
+																	),
+																},
+														  }
+														: current,
+												)
+											}
+										/>
 									{renderInlineWarnings(getExperienceWarnings(item.bullets))}
 								</div>
 							))}
@@ -1784,32 +2076,33 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-languages" className={contentSectionCardClassName}>
-						<CardHeader>
-							<CardTitle className="text-lg">Languages (comma separated)</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<Input
-								value={resume.content.languages.join(", ")}
-								onChange={(event) =>
-									setResume((current) =>
-										current
-											? {
-													...current,
-													content: {
-														...current.content,
-														languages: event.target.value
-															.split(",")
-															.map((entry) => entry.trim())
-															.filter(Boolean),
-													},
-											  }
-											: current,
-									)
-								}
-							/>
-						</CardContent>
-					</Card>
+						<Card id="resume-content-languages" className={contentSectionCardClassName}>
+							<CardHeader>
+								<CardTitle className="text-lg">Languages (comma separated)</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<Input
+									value={languagesDraftInput}
+									onChange={(event) => setLanguagesDraftInput(event.target.value)}
+									onBlur={() =>
+										setResume((current) =>
+											current
+												? {
+														...current,
+														content: {
+															...current.content,
+															languages: languagesDraftInput
+																.split(",")
+																.map((entry) => entry.trim())
+																.filter(Boolean),
+														},
+												  }
+												: current,
+										)
+									}
+								/>
+							</CardContent>
+						</Card>
 
 					{listSections.map((section) => (
 						<Card
@@ -2016,7 +2309,7 @@ export default function ResumeBuilderPage() {
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="preview" className="space-y-4">
+					<TabsContent value="preview" className="space-y-4">
 					<Card className={editorCardClassName}>
 						<button
 							type="button"
@@ -2113,13 +2406,32 @@ export default function ResumeBuilderPage() {
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-3 text-sm">
-							<div className="rounded-md border overflow-hidden">
-								<iframe
-									title="Resume PDF Preview"
-									src={pdfInlineHref}
-									className="h-[70dvh] min-h-[440px] w-full bg-white sm:h-[820px]"
-								/>
-							</div>
+								<div className="rounded-md border overflow-hidden">
+									{effectivePdfInlineHref ? (
+										<iframe
+											title="Resume PDF Preview"
+											src={effectivePdfInlineHref}
+											className="h-[70dvh] min-h-[440px] w-full bg-white sm:h-[820px]"
+										/>
+									) : (
+										<div className="flex h-[70dvh] min-h-[440px] w-full items-center justify-center bg-muted/20 p-4 sm:h-[820px]">
+											<div className="max-w-md space-y-3 text-center">
+												<p className="text-sm text-muted-foreground">
+													Generate a preview to see your resume PDF.
+												</p>
+												<Button
+													type="button"
+													onClick={triggerGuestPreviewRefresh}
+													disabled={refreshGuestPreviewMutation.isPending}
+												>
+													{refreshGuestPreviewMutation.isPending
+														? "Generating preview..."
+														: "Generate Preview"}
+												</Button>
+											</div>
+										</div>
+									)}
+								</div>
 							<div className="space-y-4 rounded-lg border border-border/70 bg-muted/15 p-4 sm:p-5">
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 									<div className="space-y-1">
@@ -2130,14 +2442,20 @@ export default function ResumeBuilderPage() {
 											Structured content currently rendered in the PDF preview.
 										</div>
 									</div>
-									<a
-										href={`${apiBaseUrl}${versionPdfPath}`}
-										target="_blank"
-										rel="noreferrer noopener"
-										className="text-xs underline underline-offset-2"
-									>
-										Open PDF in new tab
-									</a>
+										{effectivePdfInlineHref ? (
+											<a
+												href={
+													isGuestMode
+														? effectivePdfInlineHref
+														: `${apiBaseUrl}${versionPdfPath}`
+												}
+												target="_blank"
+												rel="noreferrer noopener"
+												className="text-xs underline underline-offset-2"
+											>
+												Open PDF in new tab
+											</a>
+										) : null}
 								</div>
 								<div className="space-y-4">
 									<div className="space-y-1">
@@ -2230,10 +2548,10 @@ export default function ResumeBuilderPage() {
 							</div>
 						</CardContent>
 					</Card>
-				</TabsContent>
-			</Tabs>
+					</TabsContent>
+				</Tabs>
 
-			{!previewOpen ? (
+			{!isGuestMode && !previewOpen ? (
 				<div
 					className="pointer-events-none fixed z-30 hidden xl:block"
 					style={
@@ -2323,7 +2641,7 @@ export default function ResumeBuilderPage() {
 				</div>
 			) : null}
 
-			{previewOpen ? (
+			{!isGuestMode && previewOpen ? (
 				<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
 					<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:rounded-xl">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">

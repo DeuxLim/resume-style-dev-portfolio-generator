@@ -184,7 +184,7 @@ export default function LandingPage() {
 							Try profile builder
 						</Link>
 						<Link
-							to="/dashboard/resume"
+							to="/resume"
 							className={buttonVariants({ variant: "outline", size: "lg" })}
 						>
 							<FileText className="size-4" />
