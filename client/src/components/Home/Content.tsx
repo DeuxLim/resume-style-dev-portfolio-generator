@@ -14,7 +14,7 @@ import {
 	PORTFOLIO_LAYOUT_GAP,
 	PORTFOLIO_LAYOUT_ROW_HEIGHT,
 } from "@/lib/portfolioLayout";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { PublicPortfolio } from "../../../../shared/types/portfolio.types";
 import { defaultPortfolioLayout } from "../../../../shared/defaults/portfolio";
 import type { PortfolioSectionKey } from "../../../../shared/types/portfolio.types";
@@ -75,6 +75,12 @@ export default function Content({
 		heights: sectionHeightByKey,
 		positions: sectionPositionByKey,
 	});
+	const footerDesktopRowStart =
+		sectionOrder.reduce((maxRow, key) => {
+			const y = packedLayoutByKey[key]?.y ?? 0;
+			const h = packedLayoutByKey[key]?.h ?? 6;
+			return Math.max(maxRow, y + h);
+		}, 0) + 1;
 
 	const sectionContentByKey: Record<PortfolioSectionKey, ReactNode> = {
 		about: <About paragraphs={data?.about} />,
@@ -134,36 +140,45 @@ export default function Content({
 
 	return (
 		<div
-			className="grid grid-cols-4 md:grid-cols-12"
-			style={{
-				gap: `${PORTFOLIO_LAYOUT_GAP}px`,
-				gridAutoRows: `${PORTFOLIO_LAYOUT_ROW_HEIGHT}px`,
-			}}
+			className="generated-output-grid grid"
+			style={
+				{
+					gap: `${PORTFOLIO_LAYOUT_GAP}px`,
+					"--desktop-row-height": `${PORTFOLIO_LAYOUT_ROW_HEIGHT}px`,
+				} as CSSProperties
+			}
 		>
-			{sectionOrder.map((sectionKey, index) => (
-				<motion.div
-					key={sectionKey}
-					layout
-					initial={
-						prefersReducedMotion
-							? false
-							: { opacity: 0, y: index % 2 === 0 ? 14 : -14 }
-					}
-					animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-					transition={
-						prefersReducedMotion
-							? undefined
-							: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
-					}
-					className="col-span-4 layout-scroll-content app-card overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 [overflow-wrap:anywhere]"
-					style={{
-						gridColumn: `${(packedLayoutByKey[sectionKey]?.x ?? 0) + 1} / span ${packedLayoutByKey[sectionKey]?.w ?? 6}`,
-						gridRow: `${(packedLayoutByKey[sectionKey]?.y ?? 0) + 1} / span ${packedLayoutByKey[sectionKey]?.h ?? 6}`,
-					}}
-				>
-					{sectionContentByKey[sectionKey]}
-				</motion.div>
-			))}
+			{sectionOrder.map((sectionKey, index) => {
+				const packed = packedLayoutByKey[sectionKey];
+				const desktopPlacementStyle = {
+					"--desktop-col-start": String((packed?.x ?? 0) + 1),
+					"--desktop-col-span": String(packed?.w ?? 6),
+					"--desktop-row-start": String((packed?.y ?? 0) + 1),
+					"--desktop-row-span": String(packed?.h ?? 6),
+				} as CSSProperties;
+
+				return (
+					<motion.div
+						key={sectionKey}
+						layout
+						initial={
+							prefersReducedMotion
+								? false
+								: { opacity: 0, y: index % 2 === 0 ? 14 : -14 }
+						}
+						animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+						transition={
+							prefersReducedMotion
+								? undefined
+								: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
+						}
+						className="generated-output-section layout-scroll-content app-card overflow-x-hidden p-2.5 sm:p-4 [overflow-wrap:anywhere]"
+						style={desktopPlacementStyle}
+					>
+						{sectionContentByKey[sectionKey]}
+					</motion.div>
+				);
+			})}
 
 			{/* Footer */}
 			<motion.div
@@ -174,16 +189,12 @@ export default function Content({
 						? undefined
 						: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
 				}
-				className="md:col-span-12 col-span-4 border-t border-(--app-border) p-2.5 sm:p-4 flex items-center justify-center mt-3 sm:mt-4 h-16 sm:h-24"
-				style={{
-					gridColumn: "1 / span 12",
-					gridRowStart:
-						sectionOrder.reduce((maxRow, key) => {
-							const y = packedLayoutByKey[key]?.y ?? 0;
-							const h = packedLayoutByKey[key]?.h ?? 6;
-							return Math.max(maxRow, y + h);
-						}, 0) + 1,
-				}}
+				className="generated-output-footer mt-3 flex h-16 items-center justify-center border-t border-(--app-border) p-2.5 sm:mt-4 sm:h-24 sm:p-4"
+				style={
+					{
+						"--desktop-footer-row-start": String(footerDesktopRowStart),
+					} as CSSProperties
+				}
 			>
 				<Footer fullName={data?.fullName} />
 			</motion.div>

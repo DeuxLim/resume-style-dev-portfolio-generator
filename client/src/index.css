@@ -344,6 +344,40 @@
 		word-break: break-word;
 	}
 
+	.generated-output-grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-auto-rows: auto;
+	}
+
+	.generated-output-section {
+		grid-column: 1 / span 4;
+		grid-row: auto;
+		overflow-y: visible;
+	}
+
+	.generated-output-footer {
+		grid-column: 1 / span 4;
+		grid-row: auto;
+	}
+
+	@media (min-width: 768px) {
+		.generated-output-grid {
+			grid-template-columns: repeat(12, minmax(0, 1fr));
+			grid-auto-rows: var(--desktop-row-height, 34px);
+		}
+
+		.generated-output-section {
+			grid-column: var(--desktop-col-start) / span var(--desktop-col-span);
+			grid-row: var(--desktop-row-start) / span var(--desktop-row-span);
+			overflow-y: auto;
+		}
+
+		.generated-output-footer {
+			grid-column: 1 / span 12;
+			grid-row-start: var(--desktop-footer-row-start);
+		}
+	}
+
 	.react-grid-item.react-draggable-dragging {
 		z-index: 20;
 		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);

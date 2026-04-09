@@ -135,8 +135,9 @@ const GRID_ALLOWED_SPANS: PortfolioSectionSpan[] = [4, 6, 8, 12];
 const GRID_ROW_HEIGHT = PORTFOLIO_LAYOUT_ROW_HEIGHT;
 const GRID_GAP = PORTFOLIO_LAYOUT_GAP;
 const GRID_CONTAINER_PADDING = 0;
-const GRID_MIN_HEIGHT = 4;
+const GRID_MIN_HEIGHT = 2;
 const GRID_MAX_HEIGHT = 48;
+const GRID_PROJECTS_MAX_HEIGHT = 10;
 const GRID_MAX_X = GRID_COLS - 1;
 const GRID_MAX_Y = 47;
 const MAX_CUSTOM_SECTIONS = 8;
@@ -249,6 +250,8 @@ export default function PortfolioEditorPage() {
 	);
 	const experienceItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 	const hasAutoFitOnLayoutOpen = useRef(false);
+	const autoFitRetryCountRef = useRef(0);
+	const autoFitRetryTimeoutRef = useRef<number | null>(null);
 	const hydratedPortfolioSourceRef = useRef<string | null>(null);
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -424,6 +427,7 @@ export default function PortfolioEditorPage() {
 		Math.ceil((pixelHeight + GRID_GAP) / (GRID_ROW_HEIGHT + GRID_GAP));
 
 	const autoFitCanvasHeights = () => {
+		let measuredSectionCount = 0;
 		setPortfolio((current) => {
 			if (!current) return current;
 
@@ -437,6 +441,7 @@ export default function PortfolioEditorPage() {
 				const innerNode = sectionInnerContentRefs.current[section];
 				if (!outerNode || !innerNode) continue;
 				if (outerNode.clientHeight <= 0 || innerNode.scrollHeight <= 0) continue;
+				measuredSectionCount += 1;
 
 				const styles = window.getComputedStyle(outerNode);
 				const paddingY =
@@ -468,22 +473,54 @@ export default function PortfolioEditorPage() {
 				},
 			};
 		});
+		return measuredSectionCount;
 	};
 
 	useEffect(() => {
 		if (!pendingAutoFit || activeTab !== "layout" || layoutWidth <= 0) return;
 		const rafId = requestAnimationFrame(() => {
-			autoFitCanvasHeights();
+			const measuredSectionCount = autoFitCanvasHeights();
+			if (
+				measuredSectionCount === 0 &&
+				autoFitRetryCountRef.current < 10
+			) {
+				autoFitRetryCountRef.current += 1;
+				setPendingAutoFit(false);
+				autoFitRetryTimeoutRef.current = window.setTimeout(() => {
+					setPendingAutoFit(true);
+				}, 80);
+				return;
+			}
+			// Run a few settling passes on layout open so refreshed views converge
+			// to true content-fit heights even if fonts/content wrap after first paint.
+			if (autoFitRetryCountRef.current < 3) {
+				autoFitRetryCountRef.current += 1;
+				setPendingAutoFit(false);
+				autoFitRetryTimeoutRef.current = window.setTimeout(() => {
+					setPendingAutoFit(true);
+				}, 120);
+				return;
+			}
+			autoFitRetryCountRef.current = 0;
 			setPendingAutoFit(false);
 		});
 		return () => {
 			cancelAnimationFrame(rafId);
+			if (autoFitRetryTimeoutRef.current !== null) {
+				window.clearTimeout(autoFitRetryTimeoutRef.current);
+				autoFitRetryTimeoutRef.current = null;
+			}
 		};
 	}, [activeTab, layoutWidth, pendingAutoFit]);
 
 	useEffect(() => {
 		if (activeTab !== "layout") {
 			hasAutoFitOnLayoutOpen.current = false;
+			autoFitRetryCountRef.current = 0;
+			if (autoFitRetryTimeoutRef.current !== null) {
+				window.clearTimeout(autoFitRetryTimeoutRef.current);
+				autoFitRetryTimeoutRef.current = null;
+			}
 			return;
 		}
 		if (!portfolio) return;
@@ -1495,10 +1532,13 @@ export default function PortfolioEditorPage() {
 	const getLayoutOrder = (source: EditablePortfolio) =>
 		getVisibleSectionOrder(source);
 
-	const getSectionMaxHeight = (
-		_source: EditablePortfolio,
-		_sectionKey: PortfolioSectionKey,
-	): number => GRID_MAX_HEIGHT;
+const getSectionMaxHeight = (
+	_source: EditablePortfolio,
+	sectionKey: PortfolioSectionKey,
+): number => {
+	if (sectionKey === "projects") return GRID_PROJECTS_MAX_HEIGHT;
+	return GRID_MAX_HEIGHT;
+};
 
 	const getSectionMinHeight = (
 		source: EditablePortfolio,
