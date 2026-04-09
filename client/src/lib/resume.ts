@@ -3,7 +3,7 @@ import {
 	defaultResumeSectionOrder,
 	defaultResumeVisibility,
 } from "../../../shared/defaults/resume";
-import { validateResume } from "../../../shared/lib/resume";
+import { groupResumeSkills, validateResume } from "../../../shared/lib/resume";
 import type {
 	ResumeRecord,
 	ResumeSectionKey,
@@ -27,7 +27,10 @@ export const createResumeListItem = (): ResumeStructuredListItem => ({
 
 export const cloneResume = (resume: ResumeRecord): ResumeRecord => ({
 	templateKey:
-		resume.templateKey === "harvard_classic_v1" ? "harvard_classic_v1" : "ats_classic_v1",
+		resume.templateKey === "harvard_classic_v1" ||
+		resume.templateKey === "deux_modern_v1"
+			? resume.templateKey
+			: "ats_classic_v1",
 	content: {
 		header: { ...resume.content.header },
 		summary: resume.content.summary,
@@ -110,6 +113,7 @@ export const moveSection = (
 };
 
 export const getResumeValidation = (resume: ResumeRecord) => validateResume(resume);
+export { groupResumeSkills };
 
 export const resumeSections: Array<{
 	key: ResumeSectionKey;

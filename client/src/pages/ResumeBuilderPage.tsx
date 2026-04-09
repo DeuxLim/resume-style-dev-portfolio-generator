@@ -17,6 +17,7 @@ import {
 	cloneResume,
 	createResumeListItem,
 	getResumeValidation,
+	groupResumeSkills,
 	moveSection,
 	resetResumeLayout,
 	resumeSections,
@@ -90,6 +91,7 @@ const listSections: Array<{
 const resumeTemplateOptions: Array<{ key: ResumeTemplateKey; label: string }> = [
 	{ key: "ats_classic_v1", label: "ATS Classic (Default)" },
 	{ key: "harvard_classic_v1", label: "Harvard Classic" },
+	{ key: "deux_modern_v1", label: "Modern ATS" },
 ];
 
 const versionBaseOptions: Array<{
@@ -158,6 +160,11 @@ type ResumeCreateFormState = {
 	structuredDetails: string;
 	structuredUrl: string;
 };
+type SkillCategoryDraft = {
+	id: string;
+	category: string;
+	skillsText: string;
+};
 const makeCreateFormDefaults = (): ResumeCreateFormState => ({
 	experienceRole: "",
 	experienceCompany: "",
@@ -186,6 +193,36 @@ const parseTextareaLines = (value: string) =>
 		.split("\n")
 		.map((entry) => entry.trim())
 		.filter(Boolean);
+
+const toSkillCategoryDrafts = (skills: string[]): SkillCategoryDraft[] => {
+	const groups = groupResumeSkills(skills);
+	if (!groups.length) {
+		return [{ id: makeId(), category: "", skillsText: "" }];
+	}
+	return groups.map((group) => ({
+		id: makeId(),
+		category: group.category,
+		skillsText: group.items.join(", "),
+	}));
+};
+
+const serializeSkillCategoryDrafts = (drafts: SkillCategoryDraft[]) => {
+	const values: string[] = [];
+	for (const draft of drafts) {
+		const category = draft.category.trim();
+		const items = draft.skillsText
+			.split(",")
+			.map((item) => item.trim())
+			.filter(Boolean);
+		if (!items.length) continue;
+		if (category) {
+			values.push(`${category}: ${items.join(", ")}`);
+			continue;
+		}
+		values.push(...items);
+	}
+	return values;
+};
 
 const buildGuestResume = (): ResumeRecord => {
 	const starter = buildStarterResume({
@@ -263,11 +300,14 @@ export default function ResumeBuilderPage() {
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
-	const [skillsDraftInput, setSkillsDraftInput] = useState("");
+	const [skillCategoryDrafts, setSkillCategoryDrafts] = useState<SkillCategoryDraft[]>([
+		{ id: makeId(), category: "", skillsText: "" },
+	]);
 	const [languagesDraftInput, setLanguagesDraftInput] = useState("");
 	const [experienceBulletsDraftById, setExperienceBulletsDraftById] = useState<
 		Record<string, string>
 	>({});
+	const lastHydratedSkillsRef = useRef<string>("");
 	const [versionToCreate, setVersionToCreate] = useState<{
 		name: string;
 		base: ResumeVersionBase;
@@ -367,7 +407,11 @@ export default function ResumeBuilderPage() {
 
 	useEffect(() => {
 		if (!resume) return;
-		setSkillsDraftInput(resume.content.skills.join(", "));
+		const serializedResumeSkills = JSON.stringify(resume.content.skills);
+		if (serializedResumeSkills !== lastHydratedSkillsRef.current) {
+			lastHydratedSkillsRef.current = serializedResumeSkills;
+			setSkillCategoryDrafts(toSkillCategoryDrafts(resume.content.skills));
+		}
 		setLanguagesDraftInput(resume.content.languages.join(", "));
 	}, [resume?.content.skills, resume]);
 
@@ -465,7 +509,7 @@ export default function ResumeBuilderPage() {
 	const skillsWarnings = useMemo(() => {
 		if (!resume) return [];
 		const warnings: string[] = [];
-		const count = resume.content.skills.length;
+		const count = serializeSkillCategoryDrafts(skillCategoryDrafts).length;
 		if (count < 8 || count > 24) {
 			warnings.push("8-24 skills is recommended.");
 		}
@@ -473,7 +517,7 @@ export default function ResumeBuilderPage() {
 			warnings.push("Skills exceed max (40).");
 		}
 		return warnings;
-	}, [resume?.content.skills]);
+	}, [resume?.content.skills, skillCategoryDrafts]);
 
 	const contentSectionNav = useMemo(
 		() => [
@@ -782,10 +826,7 @@ export default function ResumeBuilderPage() {
 			...cloned,
 			content: {
 				...cloned.content,
-				skills: skillsDraftInput
-					.split(",")
-					.map((entry) => entry.trim())
-					.filter(Boolean),
+				skills: serializeSkillCategoryDrafts(skillCategoryDrafts),
 				languages: languagesDraftInput
 					.split(",")
 					.map((entry) => entry.trim())
@@ -1071,6 +1112,25 @@ export default function ResumeBuilderPage() {
 		setPreviewOpen(false);
 	};
 
+	const commitSkillCategoryDraftsToResume = (nextDrafts: SkillCategoryDraft[]) => {
+		const nextSkills = serializeSkillCategoryDrafts(nextDrafts);
+		setResume((current) =>
+			current
+				? {
+						...current,
+						content: {
+							...current.content,
+							skills: nextSkills,
+						},
+				  }
+				: current,
+		);
+	};
+
+	const applySkillCategoryDrafts = (nextDrafts: SkillCategoryDraft[]) => {
+		setSkillCategoryDrafts(nextDrafts);
+	};
+
 	const versionPdfPath = hasSelectedVersionId
 		? `/resumes/me/versions/${selectedVersionId}/pdf`
 		: "/resumes/me/pdf";
@@ -1090,8 +1150,12 @@ export default function ResumeBuilderPage() {
 
 	const handleTemplateChange = (event: ChangeEvent<HTMLSelectElement>) => {
 		if (applyTemplateMutation.isPending) return;
-		const nextTemplateKey: ResumeTemplateKey =
-			event.target.value === "harvard_classic_v1" ? "harvard_classic_v1" : "ats_classic_v1";
+		const selected = event.target.value as ResumeTemplateKey;
+		const nextTemplateKey: ResumeTemplateKey = resumeTemplateOptions.some(
+			(option) => option.key === selected,
+		)
+			? selected
+			: "ats_classic_v1";
 		if (resume.templateKey === nextTemplateKey) return;
 		if (isGuestMode) {
 			setResume((current) =>
@@ -1105,7 +1169,6 @@ export default function ResumeBuilderPage() {
 			setPdfPreviewNonce((current) => current + 1);
 			return;
 		}
-		const previousTemplateKey = resume.templateKey;
 		const nextResume: ResumeRecord = {
 			...resume,
 			templateKey: nextTemplateKey,
@@ -1113,14 +1176,6 @@ export default function ResumeBuilderPage() {
 		setResume(nextResume);
 		applyTemplateMutation.mutate(nextResume, {
 			onError: () => {
-				setResume((current) =>
-					current
-						? {
-								...current,
-								templateKey: previousTemplateKey,
-						  }
-						: current,
-				);
 				setToast({ type: "error", message: "Failed to apply PDF template." });
 			},
 		});
@@ -1194,7 +1249,7 @@ export default function ResumeBuilderPage() {
 			if (!target) return current;
 			nextItems[index] = {
 				...target,
-				[field]: field === "details" ? [value] : value,
+				[field]: field === "details" ? parseTextareaLines(value) : value,
 			};
 			return {
 				...current,
@@ -1655,6 +1710,34 @@ export default function ResumeBuilderPage() {
 										onChange={(event) => setHeaderField("phone", event.target.value)}
 									/>
 								</div>
+								<div className="space-y-2">
+									<Label>Location</Label>
+									<Input
+										value={resume.content.header.location}
+										onChange={(event) => setHeaderField("location", event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Website URL</Label>
+									<Input
+										value={resume.content.header.websiteUrl}
+										onChange={(event) => setHeaderField("websiteUrl", event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>LinkedIn URL</Label>
+									<Input
+										value={resume.content.header.linkedinUrl}
+										onChange={(event) => setHeaderField("linkedinUrl", event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>GitHub URL</Label>
+									<Input
+										value={resume.content.header.githubUrl}
+										onChange={(event) => setHeaderField("githubUrl", event.target.value)}
+									/>
+								</div>
 						</CardContent>
 					</Card>
 
@@ -1686,30 +1769,80 @@ export default function ResumeBuilderPage() {
 
 						<Card id="resume-content-skills" className={contentSectionCardClassName}>
 							<CardHeader>
-								<CardTitle className="text-lg">Skills (comma separated)</CardTitle>
+								<CardTitle className="text-lg">
+									Skills by Category (per line)
+								</CardTitle>
 							</CardHeader>
-							<CardContent>
-								<Textarea
-									rows={3}
-									value={skillsDraftInput}
-									onChange={(event) => setSkillsDraftInput(event.target.value)}
-									onBlur={() =>
-										setResume((current) =>
-											current
-												? {
-														...current,
-														content: {
-															...current.content,
-															skills: skillsDraftInput
-																.split(",")
-																.map((entry) => entry.trim())
-																.filter(Boolean),
-														},
-												  }
-												: current,
-										)
-									}
-								/>
+							<CardContent className="space-y-3">
+								{skillCategoryDrafts.map((draft) => (
+									<div key={draft.id} className="grid gap-2 md:grid-cols-[200px_1fr_auto]">
+										<Input
+											placeholder="Category"
+											value={draft.category}
+											onChange={(event) =>
+												applySkillCategoryDrafts(
+													skillCategoryDrafts.map((entry) =>
+														entry.id === draft.id
+															? { ...entry, category: event.target.value }
+															: entry,
+													),
+												)
+											}
+											onBlur={() => commitSkillCategoryDraftsToResume(skillCategoryDrafts)}
+										/>
+										<Input
+											placeholder="Skill 1, Skill 2, Skill 3"
+											value={draft.skillsText}
+											onChange={(event) =>
+												applySkillCategoryDrafts(
+													skillCategoryDrafts.map((entry) =>
+														entry.id === draft.id
+															? { ...entry, skillsText: event.target.value }
+															: entry,
+													),
+												)
+											}
+											onBlur={() => commitSkillCategoryDraftsToResume(skillCategoryDrafts)}
+										/>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											disabled={skillCategoryDrafts.length <= 1}
+											onClick={() =>
+												(() => {
+													const nextDrafts = skillCategoryDrafts.filter(
+														(entry) => entry.id !== draft.id,
+													);
+													applySkillCategoryDrafts(nextDrafts);
+													commitSkillCategoryDraftsToResume(nextDrafts);
+												})()
+											}
+										>
+											<Trash2 className="size-4" />
+											Remove
+										</Button>
+									</div>
+								))}
+								<div>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											(() => {
+												const nextDrafts = [
+													...skillCategoryDrafts,
+													{ id: makeId(), category: "", skillsText: "" },
+												];
+												applySkillCategoryDrafts(nextDrafts);
+												commitSkillCategoryDraftsToResume(nextDrafts);
+											})()
+										}
+									>
+										Add category line
+									</Button>
+								</div>
 								{renderInlineWarnings(skillsWarnings)}
 							</CardContent>
 						</Card>
@@ -1838,6 +1971,27 @@ export default function ResumeBuilderPage() {
 																	experience: current.content.experience.map((entry, entryIndex) =>
 																		entryIndex === index
 																			? { ...entry, endDate: event.target.value, isCurrent: false }
+																			: entry,
+																	),
+																},
+														  }
+												: current,
+											)
+										}
+									/>
+										<Input
+											placeholder="Location"
+											value={item.location}
+											onChange={(event) =>
+												setResume((current) =>
+													current
+														? {
+																...current,
+																content: {
+																	...current.content,
+																	experience: current.content.experience.map((entry, entryIndex) =>
+																		entryIndex === index
+																			? { ...entry, location: event.target.value }
 																			: entry,
 																	),
 																},
@@ -1972,6 +2126,72 @@ export default function ResumeBuilderPage() {
 																),
 															},
 													  }
+												: current,
+											)
+										}
+									/>
+									<div className="grid gap-2 md:grid-cols-2">
+										<Input
+											placeholder="Location"
+											value={item.location}
+											onChange={(event) =>
+												setResume((current) =>
+													current
+														? {
+																...current,
+																content: {
+																	...current.content,
+																	education: current.content.education.map((entry, entryIndex) =>
+																		entryIndex === index
+																			? { ...entry, location: event.target.value }
+																			: entry,
+																	),
+																},
+														  }
+														: current,
+												)
+											}
+										/>
+										<Input
+											placeholder="Graduation date"
+											value={item.graduationDate}
+											onChange={(event) =>
+												setResume((current) =>
+													current
+														? {
+																...current,
+																content: {
+																	...current.content,
+																	education: current.content.education.map((entry, entryIndex) =>
+																		entryIndex === index
+																			? { ...entry, graduationDate: event.target.value }
+																			: entry,
+																	),
+																},
+														  }
+														: current,
+												)
+											}
+										/>
+									</div>
+									<Textarea
+										rows={3}
+										placeholder="Education details (one line per bullet)"
+										value={item.details.join("\n")}
+										onChange={(event) =>
+											setResume((current) =>
+												current
+													? {
+															...current,
+															content: {
+																...current.content,
+																education: current.content.education.map((entry, entryIndex) =>
+																	entryIndex === index
+																		? { ...entry, details: parseTextareaLines(event.target.value) }
+																		: entry,
+																),
+															},
+													  }
 													: current,
 											)
 										}
@@ -2063,6 +2283,52 @@ export default function ResumeBuilderPage() {
 																projects: current.content.projects.map((entry, entryIndex) =>
 																	entryIndex === index
 																		? { ...entry, description: event.target.value }
+																		: entry,
+																),
+															},
+													  }
+												: current,
+											)
+										}
+									/>
+									<Input
+										placeholder="Project URL"
+										value={item.url}
+										onChange={(event) =>
+											setResume((current) =>
+												current
+													? {
+															...current,
+															content: {
+																...current.content,
+																projects: current.content.projects.map((entry, entryIndex) =>
+																	entryIndex === index
+																		? { ...entry, url: event.target.value }
+																		: entry,
+																),
+															},
+													  }
+													: current,
+											)
+										}
+									/>
+									<Textarea
+										rows={3}
+										placeholder="Project highlights (one line per bullet)"
+										value={item.highlights.join("\n")}
+										onChange={(event) =>
+											setResume((current) =>
+												current
+													? {
+															...current,
+															content: {
+																...current.content,
+																projects: current.content.projects.map((entry, entryIndex) =>
+																	entryIndex === index
+																		? {
+																				...entry,
+																				highlights: parseTextareaLines(event.target.value),
+																		  }
 																		: entry,
 																),
 															},
@@ -2171,12 +2437,35 @@ export default function ResumeBuilderPage() {
 												updateListSection(section.key, index, "subtitle", event.target.value)
 											}
 										/>
+										<div className="grid gap-2 md:grid-cols-2">
+											<Input
+												placeholder="Date"
+												value={item.date}
+												onChange={(event) =>
+													updateListSection(section.key, index, "date", event.target.value)
+												}
+											/>
+											<Input
+												placeholder="Location"
+												value={item.location}
+												onChange={(event) =>
+													updateListSection(section.key, index, "location", event.target.value)
+												}
+											/>
+										</div>
 										<Textarea
 											rows={2}
-											placeholder="Details"
-											value={item.details[0] ?? ""}
+											placeholder="Details (one line per bullet)"
+											value={item.details.join("\n")}
 											onChange={(event) =>
 												updateListSection(section.key, index, "details", event.target.value)
+											}
+										/>
+										<Input
+											placeholder="URL"
+											value={item.url}
+											onChange={(event) =>
+												updateListSection(section.key, index, "url", event.target.value)
 											}
 										/>
 										{section.key === "custom"
@@ -2520,7 +2809,18 @@ export default function ResumeBuilderPage() {
 									resume.content.skills.length ? (
 										<div className="space-y-1">
 											<div className="font-semibold">Skills</div>
-											<div>{resume.content.skills.join(", ")}</div>
+											{resume.templateKey === "deux_modern_v1" ? (
+												<div className="space-y-1">
+													{groupResumeSkills(resume.content.skills).map((group) => (
+														<div key={group.category}>
+															<span className="font-medium">{group.category}: </span>
+															<span>{group.items.join(", ")}</span>
+														</div>
+													))}
+												</div>
+											) : (
+												<div>{resume.content.skills.join(", ")}</div>
+											)}
 										</div>
 									) : null}
 

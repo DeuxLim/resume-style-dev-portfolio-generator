@@ -1,4 +1,7 @@
-export type ResumeTemplateKey = "ats_classic_v1" | "harvard_classic_v1";
+export type ResumeTemplateKey =
+	| "ats_classic_v1"
+	| "harvard_classic_v1"
+	| "deux_modern_v1";
 
 export type ResumeSectionKey =
 	| "header"

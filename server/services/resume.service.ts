@@ -61,7 +61,9 @@ const sanitizeVersionName = (name: string) => {
 };
 
 const isResumeTemplateKey = (value: unknown): value is ResumeTemplateKey =>
-	value === "ats_classic_v1" || value === "harvard_classic_v1";
+	value === "ats_classic_v1" ||
+	value === "harvard_classic_v1" ||
+	value === "deux_modern_v1";
 
 const toSnapshotResume = (resume: ResumeRecord): ResumeRecord => ({
 	templateKey: isResumeTemplateKey(resume.templateKey)

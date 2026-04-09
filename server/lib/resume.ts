@@ -1,8 +1,12 @@
 import PDFDocument from "pdfkit";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildStarterResume, defaultResumeLayout } from "../../shared/defaults/resume.js";
 import { defaultPortfolioLayout } from "../../shared/defaults/portfolio.js";
 import {
+	groupResumeSkills,
 	normalizeResumeContent,
 	normalizeResumeLayout,
 	validateResume,
@@ -35,6 +39,21 @@ type ResumeRow = {
 	updated_at?: Date;
 };
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const modernFontFiles = {
+	regular: path.resolve(__dirname, "../assets/fonts/HelveticaNeue-regular.ttf"),
+	bold: path.resolve(__dirname, "../assets/fonts/HelveticaNeue-bold.ttf"),
+	italic: path.resolve(__dirname, "../assets/fonts/HelveticaNeue-italic.ttf"),
+	boldItalic: path.resolve(__dirname, "../assets/fonts/HelveticaNeue-boldItalic.ttf"),
+};
+
+const hasModernFontFiles = () =>
+	fs.existsSync(modernFontFiles.regular) &&
+	fs.existsSync(modernFontFiles.bold) &&
+	fs.existsSync(modernFontFiles.italic) &&
+	fs.existsSync(modernFontFiles.boldItalic);
+
 const parseJson = <T>(value: unknown, fallback: T): T => {
 	if (value === null || value === undefined) {
 		return fallback;
@@ -65,7 +84,9 @@ const parseJson = <T>(value: unknown, fallback: T): T => {
 
 const makeId = () => randomUUID();
 const isResumeTemplateKey = (value: unknown): value is ResumeTemplateKey =>
-	value === "ats_classic_v1" || value === "harvard_classic_v1";
+	value === "ats_classic_v1" ||
+	value === "harvard_classic_v1" ||
+	value === "deux_modern_v1";
 
 export const mapResumeRow = (
 	row: ResumeRow,
@@ -384,6 +405,11 @@ const headerLine = (content: ResumeContent) =>
 		.filter(Boolean)
 		.join("  |  ");
 
+const formatHeaderLinkText = (value: string) =>
+	value
+		.replace(/^https?:\/\//i, "")
+		.replace(/\/+$/g, "");
+
 export const renderResumePdf = (
 	resume: ResumeRecord,
 	validation: ResumeValidationResult,
@@ -397,6 +423,8 @@ export const renderResumePdf = (
 	const templateKey = isResumeTemplateKey(resume.templateKey)
 		? resume.templateKey
 		: "ats_classic_v1";
+	const useEmbeddedModernFonts =
+		templateKey === "deux_modern_v1" && hasModernFontFiles();
 	const style =
 		templateKey === "harvard_classic_v1"
 			? {
@@ -420,6 +448,8 @@ export const renderResumePdf = (
 					bulletFont: "Times-Roman",
 					bulletSize: 10.5,
 					bulletIndent: 11,
+					linkColor: "#1d4ed8",
+					defaultTextColor: "#000000",
 					spacing: {
 						headerNameToHeadline: 2,
 						headerHeadlineToMeta: 3,
@@ -431,50 +461,148 @@ export const renderResumePdf = (
 						entryGap: 5,
 					},
 			  }
-			: {
-					headingFont: "Helvetica-Bold",
-					bodyFont: "Helvetica",
-					sectionHeadingSize: 10.5,
-					sectionRuleColor: "#333",
-					sectionRuleWidth: 0.4,
-					nameFont: "Helvetica-Bold",
-					nameSize: 18,
-					nameAlign: "left" as const,
-					headlineFont: "Helvetica",
-					headlineSize: 11,
-					headlineAlign: "left" as const,
-					metaFont: "Helvetica",
-					metaSize: 9.4,
-					metaAlign: "left" as const,
-					itemTitleFont: "Helvetica-Bold",
-					itemTitleSize: 10.5,
-					bodySize: 10,
-					bulletFont: "Helvetica",
-					bulletSize: 10,
-					bulletIndent: 10,
-					spacing: {
-						headerNameToHeadline: 3,
-						headerHeadlineToMeta: 4,
-						headerToBody: 8,
-						sectionTop: 9,
-						sectionRuleOffset: 2,
-						sectionToContent: 5,
-						metaToBullets: 2,
-						entryGap: 6,
-					},
-			  };
+			: templateKey === "deux_modern_v1"
+				? {
+						headingFont: useEmbeddedModernFonts ? "Modern-Bold" : "Helvetica-Bold",
+						bodyFont: useEmbeddedModernFonts ? "Modern-Regular" : "Helvetica",
+						bodyItalicFont: useEmbeddedModernFonts
+							? "Modern-Italic"
+							: "Helvetica-Oblique",
+						itemTitleItalicFont: useEmbeddedModernFonts
+							? "Modern-BoldItalic"
+							: "Helvetica-BoldOblique",
+						sectionHeadingSize: 11,
+						sectionRuleColor: "#000000",
+						sectionRuleWidth: 0.5,
+						nameFont: useEmbeddedModernFonts ? "Modern-Bold" : "Helvetica-Bold",
+						nameSize: 17,
+						nameAlign: "left" as const,
+						headlineFont: useEmbeddedModernFonts ? "Modern-Regular" : "Helvetica",
+						headlineSize: 10,
+						headlineAlign: "left" as const,
+						metaFont: useEmbeddedModernFonts ? "Modern-Regular" : "Helvetica",
+						metaSize: 10,
+						metaAlign: "left" as const,
+						itemTitleFont: useEmbeddedModernFonts ? "Modern-Bold" : "Helvetica-Bold",
+						itemTitleSize: 10,
+						bodySize: 10,
+						bulletFont: useEmbeddedModernFonts ? "Modern-Regular" : "Helvetica",
+						bulletSize: 10,
+						bulletIndent: 12,
+						linkColor: "#1155cc",
+						defaultTextColor: "#000000",
+						spacing: {
+							headerNameToHeadline: 3,
+							headerHeadlineToMeta: 3,
+							headerToBody: 8,
+							sectionTop: 8,
+							sectionRuleOffset: 2,
+							sectionToContent: 9,
+							metaToBullets: 2,
+							entryGap: 5,
+						},
+				  }
+				: {
+						headingFont: "Helvetica-Bold",
+						bodyFont: "Helvetica",
+						bodyItalicFont: "Helvetica-Oblique",
+						itemTitleItalicFont: "Helvetica-BoldOblique",
+						sectionHeadingSize: 10.5,
+						sectionRuleColor: "#333",
+						sectionRuleWidth: 0.4,
+						nameFont: "Helvetica-Bold",
+						nameSize: 18,
+						nameAlign: "left" as const,
+						headlineFont: "Helvetica",
+						headlineSize: 11,
+						headlineAlign: "left" as const,
+						metaFont: "Helvetica",
+						metaSize: 9.4,
+						metaAlign: "left" as const,
+						itemTitleFont: "Helvetica-Bold",
+						itemTitleSize: 10.5,
+						bodySize: 10,
+						bulletFont: "Helvetica",
+						bulletSize: 10,
+						bulletIndent: 10,
+						linkColor: "#1d4ed8",
+						defaultTextColor: "#000000",
+						spacing: {
+							headerNameToHeadline: 3,
+							headerHeadlineToMeta: 4,
+							headerToBody: 8,
+							sectionTop: 9,
+							sectionRuleOffset: 2,
+							sectionToContent: 5,
+							metaToBullets: 2,
+							entryGap: 6,
+						},
+				  };
 
 	const doc = new PDFDocument({
 		size: "LETTER",
 		margins: { top: 36, bottom: 36, left: 36, right: 36 },
 		info: { Title: `${content.header.fullName || "Resume"} Resume` },
 	});
+	if (useEmbeddedModernFonts) {
+		doc.registerFont("Modern-Regular", modernFontFiles.regular);
+		doc.registerFont("Modern-Bold", modernFontFiles.bold);
+		doc.registerFont("Modern-Italic", modernFontFiles.italic);
+		doc.registerFont("Modern-BoldItalic", modernFontFiles.boldItalic);
+	}
 	const pageWidth =
 		doc.page.width - doc.page.margins.left - doc.page.margins.right;
 	const spacing = style.spacing;
+	const isModernAts = templateKey === "deux_modern_v1";
 
 	const addSpace = (points: number) => {
 		doc.y += points;
+	};
+
+	const writeSplitLine = (
+		left: string,
+		right: string,
+		options: {
+			leftFont: string;
+			leftSize: number;
+			rightFont?: string;
+			rightSize?: number;
+			leftColor?: string;
+			rightColor?: string;
+			italicLeft?: boolean;
+			italicRight?: boolean;
+			lineGap?: number;
+		},
+	) => {
+		const baseY = doc.y;
+		const rightFont = options.rightFont ?? options.leftFont;
+		const rightSize = options.rightSize ?? options.leftSize;
+		const leftColor = options.leftColor ?? style.defaultTextColor;
+		const rightColor = options.rightColor ?? style.defaultTextColor;
+		const lineGap = options.lineGap ?? 0.25;
+
+		doc
+			.font(options.leftFont)
+			.fontSize(options.leftSize)
+			.fillColor(leftColor)
+			.text(left, doc.page.margins.left, baseY, {
+				width: pageWidth * 0.65,
+				lineGap,
+			});
+
+		if (right.trim()) {
+			doc
+				.font(rightFont)
+				.fontSize(rightSize)
+				.fillColor(rightColor)
+				.text(right, doc.page.margins.left, baseY, {
+					width: pageWidth,
+					align: "right",
+					lineGap,
+				});
+		}
+		doc.fillColor(style.defaultTextColor);
+		doc.y = Math.max(doc.y, baseY + doc.currentLineHeight(true));
 	};
 
 	let renderedSectionCount = 0;
@@ -484,56 +612,122 @@ export const renderResumePdf = (
 			continued: false,
 			lineGap: 0.6,
 		});
-		const currentY = doc.y + spacing.sectionRuleOffset;
-		doc
-			.moveTo(doc.page.margins.left, currentY)
-			.lineTo(doc.page.margins.left + pageWidth, currentY)
-			.strokeColor(style.sectionRuleColor)
-			.lineWidth(style.sectionRuleWidth)
-			.stroke();
-		addSpace(spacing.sectionToContent);
-		doc.strokeColor("#000");
-		renderedSectionCount += 1;
-	};
+			const currentY = doc.y + spacing.sectionRuleOffset;
+			doc
+				.moveTo(doc.page.margins.left, currentY)
+				.lineTo(doc.page.margins.left + pageWidth, currentY)
+				.strokeColor(style.sectionRuleColor)
+				.lineWidth(style.sectionRuleWidth)
+				.stroke();
+			addSpace(spacing.sectionToContent);
+			doc.strokeColor(style.defaultTextColor).fillColor(style.defaultTextColor);
+			renderedSectionCount += 1;
+		};
 
 	const writeMeta = (value: string) => {
 		if (!value.trim()) return;
 		doc.font(style.metaFont).fontSize(style.metaSize).text(value, {
-			lineGap: 0.8,
+			lineGap: isModernAts ? 0.25 : 0.8,
 		});
 	};
 
 	const writeBullets = (bullets: string[]) => {
 		if (!bullets.length) return;
 		for (const bullet of bullets) {
-			doc.font(style.bulletFont).fontSize(style.bulletSize).text(`• ${bullet}`, {
-				align: "left",
-				lineGap: 1.15,
-				indent: style.bulletIndent,
+				doc.font(style.bulletFont).fontSize(style.bulletSize).text(`• ${bullet}`, {
+					align: "left",
+					lineGap: isModernAts ? 0.2 : 1.15,
+					indent: isModernAts ? 0 : style.bulletIndent,
+				});
+			}
+		};
+
+	const displayName = content.header.fullName || "Your Name";
+	doc
+		.font(style.nameFont)
+		.fontSize(style.nameSize)
+		.text(isModernAts ? displayName.toUpperCase() : displayName, {
+			align: style.nameAlign,
+			lineGap: isModernAts ? 0 : 1,
+		});
+	if (isModernAts) {
+		const plainParts = [
+			content.header.location,
+			content.header.phone,
+			content.header.email,
+		].filter(Boolean);
+		const linkParts = [
+			content.header.githubUrl,
+			content.header.linkedinUrl,
+			content.header.websiteUrl,
+		].filter(Boolean);
+		const headerRowGap = 2;
+
+		// Keep header rhythm deterministic: fixed spacing between each row.
+		addSpace(headerRowGap);
+		if (plainParts.length) {
+			doc
+				.font(style.metaFont)
+				.fontSize(style.metaSize)
+				.fillColor(style.defaultTextColor)
+				.text(plainParts.join(" | "), {
+					align: style.metaAlign,
+					lineGap: 0,
+				});
+		}
+
+		if (linkParts.length) {
+			addSpace(headerRowGap);
+			linkParts.forEach((part, index) => {
+				const isLast = index === linkParts.length - 1;
+				const displayLink = formatHeaderLinkText(String(part));
+				doc
+					.font(style.metaFont)
+					.fontSize(style.metaSize)
+					.fillColor(style.linkColor)
+					.text(displayLink, {
+						underline: true,
+						lineGap: 0,
+						continued: !isLast,
+					});
+				if (!isLast) {
+					const separator = " | ";
+					doc
+						.font(style.metaFont)
+						.fontSize(style.metaSize)
+						.fillColor(style.defaultTextColor)
+						.text(separator, {
+							underline: false,
+							lineGap: 0,
+							continued: true,
+						});
+				}
+			});
+			doc.fillColor(style.defaultTextColor);
+		}
+
+		addSpace(6);
+	} else {
+		if (content.header.headline) {
+			addSpace(spacing.headerNameToHeadline);
+			doc.font(style.headlineFont).fontSize(style.headlineSize).text(content.header.headline, {
+				align: style.headlineAlign,
+				lineGap: 1,
 			});
 		}
-	};
-
-	doc.font(style.nameFont).fontSize(style.nameSize).text(content.header.fullName || "Your Name", {
-		align: style.nameAlign,
-		lineGap: 1,
-	});
-	if (content.header.headline) {
-		addSpace(spacing.headerNameToHeadline);
-		doc.font(style.headlineFont).fontSize(style.headlineSize).text(content.header.headline, {
-			align: style.headlineAlign,
-			lineGap: 1,
-		});
+		const line = headerLine(content);
+		if (line) {
+			addSpace(spacing.headerHeadlineToMeta);
+			doc.font(style.metaFont).fontSize(style.metaSize).text(line, {
+				align: style.metaAlign,
+				lineGap: 0.95,
+			});
+		}
+		addSpace(spacing.headerToBody);
 	}
-	const line = headerLine(content);
-	if (line) {
-		addSpace(spacing.headerHeadlineToMeta);
-		doc.font(style.metaFont).fontSize(style.metaSize).text(line, {
-			align: style.metaAlign,
-			lineGap: 0.95,
-		});
+	if (isModernAts) {
+		doc.strokeColor(style.defaultTextColor).fillColor(style.defaultTextColor);
 	}
-	addSpace(spacing.headerToBody);
 
 	const orderedSections = layout.sectionOrder.filter((section) =>
 		section === "header" ? false : Boolean(layout.visibility[section]),
@@ -547,64 +741,160 @@ export const renderResumePdf = (
 			});
 		}
 		if (section === "experience" && content.experience.length) {
-			writeSectionTitle("Experience");
-			for (const item of content.experience) {
-				doc.font(style.itemTitleFont)
-					.fontSize(style.itemTitleSize)
-					.text(`${item.role} · ${item.company}`, { lineGap: 1 });
-				writeMeta(
-					[item.location, `${item.startDate} - ${item.isCurrent ? "Present" : item.endDate}`]
-						.filter(Boolean)
-						.join(" | "),
-				);
+			writeSectionTitle(isModernAts ? "Work Experience" : "Experience");
+			content.experience.forEach((item, index) => {
+				if (isModernAts) {
+					writeSplitLine(item.company || item.role, item.location, {
+						leftFont: style.itemTitleFont,
+						leftSize: style.itemTitleSize,
+						rightFont: style.itemTitleFont,
+						rightSize: style.itemTitleSize,
+						lineGap: 0.2,
+					});
+					writeSplitLine(
+						item.role,
+						[item.startDate, item.isCurrent ? "Present" : item.endDate]
+							.filter(Boolean)
+							.join(" - "),
+						{
+							leftFont: style.bodyItalicFont,
+							leftSize: style.bodySize,
+							rightFont: style.bodyItalicFont,
+							rightSize: style.bodySize,
+							italicLeft: true,
+							italicRight: true,
+							lineGap: 0.2,
+						},
+					);
+				} else {
+					doc.font(style.itemTitleFont)
+						.fontSize(style.itemTitleSize)
+						.text(`${item.role} · ${item.company}`, { lineGap: 1 });
+					writeMeta(
+						[item.location, `${item.startDate} - ${item.isCurrent ? "Present" : item.endDate}`]
+							.filter(Boolean)
+							.join(" | "),
+					);
+				}
 				addSpace(spacing.metaToBullets);
 				writeBullets(item.bullets);
-				addSpace(spacing.entryGap);
-			}
+				if (index < content.experience.length - 1) {
+					addSpace(spacing.entryGap);
+				}
+			});
 		}
 		if (section === "education" && content.education.length) {
 			writeSectionTitle("Education");
-			for (const item of content.education) {
-				doc.font(style.itemTitleFont)
-					.fontSize(style.itemTitleSize)
-					.text([item.degree, item.school].filter(Boolean).join(" · "), {
-						lineGap: 1,
+			content.education.forEach((item, index) => {
+				if (isModernAts) {
+					writeSplitLine(item.school, item.location, {
+						leftFont: style.itemTitleFont,
+						leftSize: style.itemTitleSize,
+						rightFont: style.itemTitleFont,
+						rightSize: style.itemTitleSize,
+						lineGap: 0.2,
 					});
-				writeMeta(
-					[item.location, item.graduationDate].filter(Boolean).join(" | "),
-				);
-				addSpace(spacing.metaToBullets);
-				writeBullets(item.details);
-				addSpace(spacing.entryGap);
-			}
+					writeSplitLine(
+						item.degree,
+						item.graduationDate ? `Graduated ${item.graduationDate}` : "",
+						{
+							leftFont: style.bodyItalicFont,
+							leftSize: style.bodySize,
+							rightFont: style.bodyItalicFont,
+							rightSize: style.bodySize,
+							italicLeft: true,
+							italicRight: true,
+							lineGap: 0.2,
+						},
+					);
+					if (item.details.length) {
+						addSpace(spacing.metaToBullets);
+						writeBullets(item.details);
+					}
+				} else {
+					doc.font(style.itemTitleFont)
+						.fontSize(style.itemTitleSize)
+						.text([item.degree, item.school].filter(Boolean).join(" · "), {
+							lineGap: 1,
+						});
+					writeMeta(
+						[item.location, item.graduationDate].filter(Boolean).join(" | "),
+					);
+					addSpace(spacing.metaToBullets);
+					writeBullets(item.details);
+				}
+				if (index < content.education.length - 1) {
+					addSpace(spacing.entryGap);
+				}
+			});
 		}
 		if (section === "skills" && content.skills.length) {
 			writeSectionTitle("Skills");
-			doc.font(style.bodyFont).fontSize(style.bodySize).text(content.skills.join(", "), {
-				lineGap: 1.25,
-			});
-		}
-		if (section === "projects" && content.projects.length) {
-			writeSectionTitle("Projects");
-			for (const item of content.projects) {
-				doc.font(style.itemTitleFont).fontSize(style.itemTitleSize).text(item.name, {
-					lineGap: 1,
-				});
-				if (item.description) {
-					doc.font(style.bodyFont).fontSize(style.bodySize).text(item.description, {
+			if (templateKey === "deux_modern_v1") {
+				const groups = groupResumeSkills(content.skills);
+				if (groups.length) {
+					for (const group of groups) {
+						doc
+							.font(style.itemTitleFont)
+							.fontSize(style.bodySize)
+							.fillColor(style.defaultTextColor)
+							.text(`${group.category}: `, {
+								continued: true,
+								lineGap: 1.2,
+							});
+						doc
+							.font(style.bodyFont)
+							.fontSize(style.bodySize)
+							.fillColor(style.defaultTextColor)
+							.text(group.items.join(", "), { lineGap: 1.2 });
+					}
+				} else {
+					doc.font(style.bodyFont).fontSize(style.bodySize).text(content.skills.join(", "), {
 						lineGap: 1.25,
 					});
 				}
-				if (item.url) {
-					doc.fillColor("#1d4ed8").font(style.bodyFont).text(item.url, {
+			} else {
+				doc.font(style.bodyFont).fontSize(style.bodySize).text(content.skills.join(", "), {
+					lineGap: 1.25,
+				});
+			}
+		}
+		if (section === "projects" && content.projects.length) {
+			writeSectionTitle("Projects");
+			content.projects.forEach((item, index) => {
+				if (isModernAts) {
+					const rightMeta = item.description;
+					writeSplitLine(item.name, rightMeta, {
+						leftFont: style.itemTitleFont,
+						leftSize: style.itemTitleSize,
+						rightFont: style.bodyItalicFont,
+						rightSize: style.bodySize,
+						italicRight: true,
+						lineGap: 0.2,
+					});
+				} else {
+					doc.font(style.itemTitleFont).fontSize(style.itemTitleSize).text(item.name, {
 						lineGap: 1,
 					});
-					doc.fillColor("#000");
+					if (item.description) {
+						doc.font(style.bodyFont).fontSize(style.bodySize).text(item.description, {
+							lineGap: 1.25,
+						});
+					}
+				}
+				if (item.url) {
+					doc.fillColor(style.linkColor).font(style.bodyFont).text(item.url, {
+						lineGap: isModernAts ? 0.2 : 1,
+						underline: isModernAts,
+					});
+					doc.fillColor(style.defaultTextColor);
 				}
 				addSpace(spacing.metaToBullets);
 				writeBullets(item.highlights);
-				addSpace(spacing.entryGap);
-			}
+				if (index < content.projects.length - 1) {
+					addSpace(spacing.entryGap);
+				}
+			});
 		}
 		const listSections: Array<{
 			key: ResumeSectionKey;
@@ -620,7 +910,7 @@ export const renderResumePdf = (
 		for (const listSection of listSections) {
 			if (section !== listSection.key || !listSection.items.length) continue;
 			writeSectionTitle(listSection.title);
-			for (const item of listSection.items) {
+			listSection.items.forEach((item, index) => {
 				doc
 					.font(style.itemTitleFont)
 					.fontSize(style.itemTitleSize)
@@ -631,13 +921,15 @@ export const renderResumePdf = (
 				addSpace(spacing.metaToBullets);
 				writeBullets(item.details);
 				if (item.url) {
-					doc.fillColor("#1d4ed8").font(style.bodyFont).text(item.url, {
+					doc.fillColor(style.linkColor).font(style.bodyFont).text(item.url, {
 						lineGap: 1,
 					});
-					doc.fillColor("#000");
+					doc.fillColor(style.defaultTextColor);
 				}
-				addSpace(spacing.entryGap);
-			}
+				if (index < listSection.items.length - 1) {
+					addSpace(spacing.entryGap);
+				}
+			});
 		}
 		if (section === "languages" && content.languages.length) {
 			writeSectionTitle("Languages");

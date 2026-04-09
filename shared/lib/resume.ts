@@ -13,6 +13,11 @@ import type {
 	ResumeValidationResult,
 } from "../types/resume.types.js";
 
+export type ResumeSkillCategory = {
+	category: string;
+	items: string[];
+};
+
 const clamp = (value: number, min: number, max: number) =>
 	Math.min(max, Math.max(min, value));
 
@@ -37,6 +42,135 @@ const normalizedListItems = (items: ResumeStructuredListItem[]) =>
 		.filter((item) =>
 			item.title || item.subtitle || item.date || item.location || item.url || item.details.length,
 		);
+
+const defaultSkillCategoryOrder = [
+	"Languages & Frameworks",
+	"Databases",
+	"Tools & Technologies",
+	"Frontend",
+	"Core",
+];
+
+const skillToCategory = (skill: string): string | null => {
+	const value = skill.trim().toLowerCase();
+	const normalized = value.replace(/\s+/g, " ");
+	if (!normalized) return null;
+
+	const inSet = (set: string[]) => set.includes(normalized);
+
+	if (
+		inSet([
+			"php",
+			"laravel",
+			"javascript",
+			"typescript",
+			"react",
+			"node.js",
+			"nodejs",
+			"express",
+		])
+	) {
+		return "Languages & Frameworks";
+	}
+
+	if (inSet(["mysql", "mongodb", "postgresql", "postgres", "sqlite"])) {
+		return "Databases";
+	}
+
+	if (
+		inSet([
+			"git",
+			"github",
+			"gitlab",
+			"docker",
+			"postman",
+			"vercel",
+			"claude code",
+			"openai codex",
+			"vite",
+			"npm",
+			"yarn",
+		])
+	) {
+		return "Tools & Technologies";
+	}
+
+	if (
+		inSet([
+			"html",
+			"html5",
+			"css",
+			"css3",
+			"tailwind css",
+			"bootstrap",
+			"shadcn/ui",
+			"shadcn",
+		])
+	) {
+		return "Frontend";
+	}
+
+	if (
+		inSet([
+			"api integrations",
+			"real-time applications",
+			"database design",
+			"system design",
+			"automation workflows",
+		])
+	) {
+		return "Core";
+	}
+
+	return null;
+};
+
+export const groupResumeSkills = (skills: string[]): ResumeSkillCategory[] => {
+	const grouped = new Map<string, string[]>();
+	const seen = new Set<string>();
+	const getUniquePush = (category: string, item: string) => {
+		const key = `${category.toLowerCase()}::${item.toLowerCase()}`;
+		if (seen.has(key)) return;
+		seen.add(key);
+		const list = grouped.get(category) ?? [];
+		list.push(item);
+		grouped.set(category, list);
+	};
+
+	for (const raw of skills) {
+		const entry = String(raw ?? "").trim();
+		if (!entry) continue;
+		const colonIndex = entry.indexOf(":");
+		if (colonIndex > 0) {
+			const category = entry.slice(0, colonIndex).trim();
+			const values = entry
+				.slice(colonIndex + 1)
+				.split(",")
+				.map((item) => item.trim())
+				.filter(Boolean);
+			if (category && values.length) {
+				for (const value of values) {
+					getUniquePush(category, value);
+				}
+				continue;
+			}
+		}
+
+		const mapped = skillToCategory(entry) ?? "Other";
+		getUniquePush(mapped, entry);
+	}
+
+	const orderedCategories = [
+		...defaultSkillCategoryOrder.filter((category) => grouped.has(category)),
+		...Array.from(grouped.keys()).filter(
+			(category) => !defaultSkillCategoryOrder.includes(category),
+		),
+	];
+
+	return orderedCategories
+		.map((category) => ({ category, items: grouped.get(category) ?? [] }))
+		.filter((group) => group.items.length > 0);
+};
 
 export const normalizeResumeLayout = (
 	layout: Partial<ResumeLayout> | null | undefined,
