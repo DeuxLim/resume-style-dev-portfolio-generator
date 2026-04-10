@@ -27,12 +27,43 @@ export const createResumeListItem = (): ResumeStructuredListItem => ({
 
 export const cloneResume = (resume: ResumeRecord): ResumeRecord => ({
 	templateKey:
-		resume.templateKey === "harvard_classic_v1" ||
 		resume.templateKey === "deux_modern_v1"
 			? resume.templateKey
-			: "ats_classic_v1",
+			: "deux_modern_v1",
 	content: {
-		header: { ...resume.content.header },
+		header: ((): ResumeRecord["content"]["header"] => {
+			const header = resume.content?.header ?? ({} as ResumeRecord["content"]["header"]);
+			const contactItems = (
+				Array.isArray(header.contactItems) && header.contactItems.length
+					? header.contactItems
+					: [header.location, header.phone, header.email]
+			)
+				.map((entry) => String(entry ?? "").trim())
+				.filter(Boolean)
+				.slice(0, 3);
+			const linkItems = (
+				Array.isArray(header.linkItems) && header.linkItems.length
+					? header.linkItems
+					: [header.githubUrl, header.linkedinUrl, header.websiteUrl]
+			)
+				.map((entry) => String(entry ?? "").trim())
+				.filter(Boolean)
+				.slice(0, 3);
+			return {
+				...header,
+				fullName: String(header.fullName ?? ""),
+				headline: String(header.headline ?? ""),
+				location: String(header.location ?? ""),
+				email: String(header.email ?? ""),
+				phone: String(header.phone ?? ""),
+				websiteUrl: String(header.websiteUrl ?? ""),
+				linkedinUrl: String(header.linkedinUrl ?? ""),
+				githubUrl: String(header.githubUrl ?? ""),
+				photoDataUrl: String(header.photoDataUrl ?? ""),
+				contactItems,
+				linkItems,
+			};
+		})(),
 		summary: resume.content.summary,
 		experience: resume.content.experience.map((item) => ({
 			...item,
@@ -67,6 +98,17 @@ export const cloneResume = (resume: ResumeRecord): ResumeRecord => ({
 		custom: resume.content.custom.map((item) => ({
 			...item,
 			details: [...item.details],
+		})),
+		customSections: (Array.isArray(resume.content.customSections)
+			? resume.content.customSections
+			: []
+		).map((section) => ({
+			...section,
+			bullets: [...section.bullets],
+			categories: section.categories.map((row) => ({
+				...row,
+				values: [...row.values],
+			})),
 		})),
 	},
 	layout: {

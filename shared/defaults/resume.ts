@@ -3,7 +3,6 @@ import type {
 	ResumeLayout,
 	ResumeRecord,
 	ResumeSectionKey,
-	ResumeStructuredListItem,
 } from "../types/resume.types.js";
 
 const makeId = (value: string) =>
@@ -31,8 +30,8 @@ export const defaultResumeSectionOrder: ResumeSectionKey[] = [
 	"header",
 	"summary",
 	"experience",
-	"education",
 	"skills",
+	"education",
 	"projects",
 	"certifications",
 	"awards",
@@ -64,16 +63,6 @@ export const defaultResumeLayout: ResumeLayout = {
 	positions: {},
 };
 
-const listItem = (title: string): ResumeStructuredListItem => ({
-	id: makeId(title),
-	title,
-	subtitle: "",
-	date: "",
-	location: "",
-	details: [],
-	url: "",
-});
-
 export const buildStarterResumeContent = (
 	input: { fullName: string; email: string; location?: string; headline?: string },
 ): ResumeContent => ({
@@ -87,6 +76,8 @@ export const buildStarterResumeContent = (
 		linkedinUrl: "",
 		githubUrl: "",
 		photoDataUrl: "",
+		contactItems: [input.location ?? "", input.email].filter(Boolean),
+		linkItems: [],
 	},
 	summary:
 		"Product-minded developer focused on building reliable and maintainable web applications with clean UX and practical architecture.",
@@ -126,12 +117,13 @@ export const buildStarterResumeContent = (
 			highlights: ["Designed and built core features end-to-end."],
 		},
 	],
-	certifications: [listItem("Certification")],
-	awards: [listItem("Award")],
-	volunteer: [listItem("Volunteer Experience")],
-	languages: ["English"],
-	publications: [listItem("Publication")],
-	custom: [listItem("Custom Section Item")],
+	certifications: [],
+	awards: [],
+	volunteer: [],
+	languages: [],
+	publications: [],
+	custom: [],
+	customSections: [],
 });
 
 export const buildStarterResume = (input: {
@@ -140,7 +132,7 @@ export const buildStarterResume = (input: {
 	location?: string;
 	headline?: string;
 }): ResumeRecord => ({
-	templateKey: "ats_classic_v1",
+	templateKey: "deux_modern_v1",
 	content: buildStarterResumeContent(input),
 	layout: { ...defaultResumeLayout },
 });

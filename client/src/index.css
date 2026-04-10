@@ -237,6 +237,12 @@
 		max-width: 100%;
 	}
 
+	.builder-sticky-subnav {
+		position: sticky;
+		top: var(--app-builder-sticky-top, 5.75rem);
+		z-index: 30;
+	}
+
 	.markdown-render h1,
 	.markdown-render h2,
 	.markdown-render h3,

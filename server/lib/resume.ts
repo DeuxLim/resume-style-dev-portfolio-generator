@@ -84,8 +84,6 @@ const parseJson = <T>(value: unknown, fallback: T): T => {
 
 const makeId = () => randomUUID();
 const isResumeTemplateKey = (value: unknown): value is ResumeTemplateKey =>
-	value === "ats_classic_v1" ||
-	value === "harvard_classic_v1" ||
 	value === "deux_modern_v1";
 
 export const mapResumeRow = (
@@ -120,7 +118,7 @@ export const serializeResume = (resume: ResumeRecord) => {
 	return {
 		templateKey: isResumeTemplateKey(resume.templateKey)
 			? resume.templateKey
-			: "ats_classic_v1",
+			: "deux_modern_v1",
 		contentJson: JSON.stringify(content),
 		layoutJson: JSON.stringify(layout),
 	};
@@ -198,6 +196,45 @@ const toCustomSectionFromList = (
 			})
 			.filter(Boolean)
 			.join("\n"),
+		items: [],
+		links: [],
+	};
+};
+
+const toPortfolioCustomSection = (
+	item: ResumeContent["customSections"][number],
+): CustomSection | null => {
+	const title = item.title.trim() || "Custom";
+	if (item.bodyMode === "bullets") {
+		return {
+			id: item.id || makeId(),
+			title,
+			type: "bullets",
+			body: "",
+			items: item.bullets,
+			links: [],
+		};
+	}
+	if (item.bodyMode === "categories") {
+		const body = item.categories
+			.map((row) => `${row.category}: ${row.values.join(", ")}`.trim())
+			.filter(Boolean)
+			.join("\n");
+		return {
+			id: item.id || makeId(),
+			title,
+			type: "text",
+			body,
+			items: [],
+			links: [],
+		};
+	}
+	if (!item.text.trim()) return null;
+	return {
+		id: item.id || makeId(),
+		title,
+		type: "text",
+		body: item.text,
 		items: [],
 		links: [],
 	};
@@ -337,6 +374,9 @@ export const mapResumeToPortfolio = (
 	}
 	if (isSectionVisible(layout, "custom")) {
 		addIfExists(toCustomSectionFromList("Custom", "text", content.custom));
+		for (const customSection of content.customSections) {
+			addIfExists(toPortfolioCustomSection(customSection));
+		}
 	}
 	if (isSectionVisible(layout, "languages") && content.languages.length) {
 		customSections.push({
@@ -352,10 +392,28 @@ export const mapResumeToPortfolio = (
 	const educationLine = content.education
 		.map((item) => [item.degree, item.school].filter(Boolean).join(" · "))
 		.filter(Boolean)[0];
-	const githubUrl = content.header.githubUrl || portfolio.githubUrl;
-	const linkedinUrl = content.header.linkedinUrl || portfolio.linkedinUrl;
-	const email = content.header.email || portfolio.email;
-	const phone = content.header.phone || portfolio.phone;
+	const headerLinks = content.header.linkItems.length
+		? content.header.linkItems
+		: [content.header.githubUrl, content.header.linkedinUrl, content.header.websiteUrl];
+	const githubUrl =
+		content.header.githubUrl ||
+		headerLinks.find((entry) => /github\.com/i.test(entry)) ||
+		portfolio.githubUrl;
+	const linkedinUrl =
+		content.header.linkedinUrl ||
+		headerLinks.find((entry) => /linkedin\.com/i.test(entry)) ||
+		portfolio.linkedinUrl;
+	const headerContacts = content.header.contactItems.length
+		? content.header.contactItems
+		: [content.header.location, content.header.phone, content.header.email];
+	const email =
+		content.header.email ||
+		headerContacts.find((entry) => /.+@.+\..+/.test(entry)) ||
+		portfolio.email;
+	const phone =
+		content.header.phone ||
+		headerContacts.find((entry) => entry.replace(/[^\d]/g, "").length >= 7) ||
+		portfolio.phone;
 	const mergedHeaderActions = mergeHeaderActions(portfolio.headerActions, {
 		githubUrl,
 		linkedinUrl,
@@ -434,7 +492,7 @@ export const renderResumePdf = (
 	const layout = normalizeResumeLayout(resume.layout);
 	const templateKey = isResumeTemplateKey(resume.templateKey)
 		? resume.templateKey
-		: "ats_classic_v1";
+		: "deux_modern_v1";
 	const useEmbeddedModernFonts =
 		templateKey === "deux_modern_v1" && hasModernFontFiles();
 	const style =
@@ -689,16 +747,24 @@ export const renderResumePdf = (
 			lineGap: isModernAts ? 0 : 1,
 		});
 	if (isModernAts) {
-		const plainParts = [
-			content.header.location,
-			content.header.phone,
-			content.header.email,
-		].filter(Boolean);
-		const linkParts = [
-			content.header.githubUrl,
-			content.header.linkedinUrl,
-			content.header.websiteUrl,
-		].filter(Boolean);
+		const plainParts = (
+			content.header.contactItems.length
+				? content.header.contactItems
+				: [content.header.location, content.header.phone, content.header.email]
+		)
+			.filter(Boolean)
+			.slice(0, 3);
+		const linkParts = (
+			content.header.linkItems.length
+				? content.header.linkItems
+				: [
+						content.header.githubUrl,
+						content.header.linkedinUrl,
+						content.header.websiteUrl,
+					]
+		)
+			.filter(Boolean)
+			.slice(0, 3);
 		const headerRowGap = 2;
 
 		// Keep header rhythm deterministic: fixed spacing between each row.
@@ -949,7 +1015,6 @@ export const renderResumePdf = (
 			{ key: "awards", title: "Awards", items: content.awards },
 			{ key: "volunteer", title: "Volunteer", items: content.volunteer },
 			{ key: "publications", title: "Publications", items: content.publications },
-			{ key: "custom", title: "Custom", items: content.custom },
 		];
 		for (const listSection of listSections) {
 			if (section !== listSection.key || !listSection.items.length) continue;
@@ -975,6 +1040,87 @@ export const renderResumePdf = (
 				}
 			});
 		}
+		if (section === "custom") {
+			if (content.custom.length) {
+				writeSectionTitle("Custom");
+				content.custom.forEach((item, index) => {
+					doc
+						.font(style.itemTitleFont)
+						.fontSize(style.itemTitleSize)
+						.text([item.title, item.subtitle].filter(Boolean).join(" · "), {
+							lineGap: 1,
+						});
+					writeMeta([item.location, item.date].filter(Boolean).join(" | "));
+					addSpace(spacing.metaToBullets);
+					writeBullets(item.details);
+					if (item.url) {
+						doc.fillColor(style.linkColor).font(style.bodyFont).text(item.url, {
+							lineGap: 1,
+						});
+						doc.fillColor(style.defaultTextColor);
+					}
+					if (index < content.custom.length - 1) {
+						addSpace(spacing.entryGap);
+					}
+				});
+			}
+			for (const sectionItem of content.customSections) {
+				writeSectionTitle(sectionItem.title || "Custom");
+				if (sectionItem.headerMode === "split") {
+					writeSplitLine(sectionItem.leftHeader, sectionItem.rightHeader, {
+						leftFont: style.itemTitleFont,
+						leftSize: style.itemTitleSize,
+						rightFont: style.itemTitleFont,
+						rightSize: style.itemTitleSize,
+						lineGap: 0.2,
+					});
+					if (sectionItem.showSubheader) {
+						const italicFont =
+							("bodyItalicFont" in style && style.bodyItalicFont
+								? style.bodyItalicFont
+								: style.bodyFont);
+						writeSplitLine(sectionItem.leftSubheader, sectionItem.rightSubheader, {
+							leftFont: italicFont,
+							leftSize: style.bodySize,
+							rightFont: italicFont,
+							rightSize: style.bodySize,
+							italicLeft: true,
+							italicRight: true,
+							lineGap: 0.2,
+						});
+					}
+					addSpace(spacing.metaToBullets);
+				}
+				if (sectionItem.bodyMode === "text" && sectionItem.text) {
+					doc.font(style.bodyFont).fontSize(style.bodySize).text(sectionItem.text, {
+						lineGap: 1.2,
+					});
+				}
+				if (sectionItem.bodyMode === "bullets") {
+					writeBullets(sectionItem.bullets);
+				}
+				if (sectionItem.bodyMode === "categories") {
+					for (const category of sectionItem.categories) {
+						const values = category.values.join(", ");
+						if (!category.category && !values) continue;
+						const prefix = category.category ? `${category.category}: ` : "";
+						doc
+							.font(style.itemTitleFont)
+							.fontSize(style.bodySize)
+							.fillColor(style.defaultTextColor)
+							.text(prefix, {
+								continued: Boolean(prefix),
+								lineGap: 1.2,
+							});
+						doc
+							.font(style.bodyFont)
+							.fontSize(style.bodySize)
+							.fillColor(style.defaultTextColor)
+							.text(values, { lineGap: 1.2 });
+					}
+				}
+			}
+		}
 		if (section === "languages" && content.languages.length) {
 			writeSectionTitle("Languages");
 			doc.font(style.bodyFont).fontSize(style.bodySize).text(content.languages.join(", "), {
@@ -995,6 +1141,14 @@ export const createStarterResumeFromPortfolio = (
 		location: portfolio.location,
 		headline: portfolio.headline,
 	});
+	starter.content.header.contactItems = [
+		portfolio.location,
+		portfolio.phone,
+		portfolio.email,
+	].filter(Boolean);
+	starter.content.header.linkItems = [portfolio.githubUrl, portfolio.linkedinUrl].filter(
+		Boolean,
+	);
 	starter.content.summary = portfolio.about[0] ?? starter.content.summary;
 	starter.content.skills = portfolio.techCategories.flatMap((category) => category.items);
 	starter.content.experience = portfolio.experiences.map((experience) => ({

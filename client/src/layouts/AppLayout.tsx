@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, apiBaseUrl } from "@/lib/axios.client";
 import { sessionQueryKey } from "@/hooks/useSession";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -34,6 +34,7 @@ export default function AppLayout() {
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
+	const headerRef = useRef<HTMLElement | null>(null);
 	const isAuthed = Boolean(sessionQuery.data?.user);
 	const username =
 		sessionQuery.data?.portfolioSlug ?? sessionQuery.data?.user?.username;
@@ -180,6 +181,28 @@ export default function AppLayout() {
 		setMobileNavOpen(false);
 	}, [location.pathname]);
 
+	useEffect(() => {
+		const header = headerRef.current;
+		if (!header) return;
+
+		const applyBuilderStickyOffset = () => {
+			const stickyTopOffsetPx = 12;
+			const stickyGapPx = 8;
+			const stickyTop = header.getBoundingClientRect().height + stickyTopOffsetPx + stickyGapPx;
+			document.documentElement.style.setProperty("--app-builder-sticky-top", `${Math.ceil(stickyTop)}px`);
+		};
+
+		applyBuilderStickyOffset();
+		const resizeObserver = new ResizeObserver(applyBuilderStickyOffset);
+		resizeObserver.observe(header);
+		window.addEventListener("resize", applyBuilderStickyOffset);
+
+		return () => {
+			resizeObserver.disconnect();
+			window.removeEventListener("resize", applyBuilderStickyOffset);
+		};
+	}, []);
+
 	const shellWidthClass = isEditorActive || isResumeBuilderActive
 		? "max-w-[96rem]"
 		: isDashboardActive
@@ -195,7 +218,10 @@ export default function AppLayout() {
 					shellWidthClass,
 				)}
 			>
-				<header className={cn("app-layout-header sticky top-3 z-40", headerSpacingClass)}>
+				<header
+					ref={headerRef}
+					className={cn("app-layout-header sticky top-3 z-40", headerSpacingClass)}
+				>
 					<div className="v2-shell-header v2-top-nav-glass px-3 py-3 sm:px-4">
 						<div className="flex items-center gap-2 sm:gap-3">
 							<Link

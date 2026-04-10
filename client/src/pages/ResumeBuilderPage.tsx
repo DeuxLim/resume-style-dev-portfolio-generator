@@ -16,13 +16,14 @@ import { buildStarterResume } from "../../../shared/defaults/resume";
 import {
 	cloneResume,
 	createResumeListItem,
-	getResumeValidation,
 	groupResumeSkills,
 	moveSection,
 	resetResumeLayout,
 	resumeSections,
 } from "@/lib/resume";
 import type {
+	ResumeDynamicSection,
+	ResumeDynamicSectionHeaderMode,
 	ResumeRecord,
 	ResumeSectionKey,
 	ResumeStructuredListItem,
@@ -51,7 +52,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import {
 	ArrowDown,
 	ArrowUp,
-	ChevronDown,
 	Download,
 	Eye,
 	EyeOff,
@@ -78,19 +78,16 @@ const sectionTitleByKey: Record<ResumeSectionKey, string> = {
 };
 
 const listSections: Array<{
-	key: "certifications" | "awards" | "volunteer" | "publications" | "custom";
+	key: "certifications" | "awards" | "volunteer" | "publications";
 	title: string;
 }> = [
 	{ key: "certifications", title: "Certifications" },
 	{ key: "awards", title: "Awards" },
 	{ key: "volunteer", title: "Volunteer" },
 	{ key: "publications", title: "Publications" },
-	{ key: "custom", title: "Custom" },
 ];
 
 const resumeTemplateOptions: Array<{ key: ResumeTemplateKey; label: string }> = [
-	{ key: "ats_classic_v1", label: "ATS Classic (Default)" },
-	{ key: "harvard_classic_v1", label: "Harvard Classic" },
 	{ key: "deux_modern_v1", label: "Modern ATS" },
 ];
 
@@ -129,36 +126,37 @@ const FLOATING_PREVIEW_MIN_TOP = 96;
 const FLOATING_PREVIEW_COLLAPSED_WIDTH = 288;
 const FLOATING_PREVIEW_COLLAPSED_HEIGHT = 260;
 type StructuredSectionKey = (typeof listSections)[number]["key"];
-type ResumeCreateModalKind = "experience" | "education" | "project" | "structured";
+type ResumeCreateModalKind =
+	| "experience"
+	| "education"
+	| "project"
+	| "structured"
+	| "custom";
 type ResumeCreateModalState = {
 	kind: ResumeCreateModalKind;
 	title: string;
 	subtitle: string;
 	sectionKey?: StructuredSectionKey;
 	submitLabel: string;
+	lockSectionTitle?: boolean;
+};
+type CreateModalCategoryRow = {
+	id: string;
+	category: string;
+	valuesText: string;
 };
 type ResumeCreateFormState = {
-	experienceRole: string;
-	experienceCompany: string;
-	experienceLocation: string;
-	experienceStartDate: string;
-	experienceEndDate: string;
-	experienceBullets: string;
-	educationDegree: string;
-	educationSchool: string;
-	educationLocation: string;
-	educationGraduationDate: string;
-	educationDetails: string;
-	projectName: string;
-	projectDescription: string;
-	projectUrl: string;
-	projectHighlights: string;
-	structuredTitle: string;
-	structuredSubtitle: string;
-	structuredDate: string;
-	structuredLocation: string;
-	structuredDetails: string;
-	structuredUrl: string;
+	sectionTitle: string;
+	headerMode: ResumeDynamicSectionHeaderMode;
+	showSubheader: boolean;
+	leftHeader: string;
+	rightHeader: string;
+	leftSubheader: string;
+	rightSubheader: string;
+	bodyMode: "text" | "bullets" | "categories";
+	text: string;
+	bulletsText: string;
+	categories: CreateModalCategoryRow[];
 };
 type SkillCategoryDraft = {
 	id: string;
@@ -166,33 +164,133 @@ type SkillCategoryDraft = {
 	skillsText: string;
 };
 const makeCreateFormDefaults = (): ResumeCreateFormState => ({
-	experienceRole: "",
-	experienceCompany: "",
-	experienceLocation: "",
-	experienceStartDate: "",
-	experienceEndDate: "",
-	experienceBullets: "",
-	educationDegree: "",
-	educationSchool: "",
-	educationLocation: "",
-	educationGraduationDate: "",
-	educationDetails: "",
-	projectName: "",
-	projectDescription: "",
-	projectUrl: "",
-	projectHighlights: "",
-	structuredTitle: "",
-	structuredSubtitle: "",
-	structuredDate: "",
-	structuredLocation: "",
-	structuredDetails: "",
-	structuredUrl: "",
+	sectionTitle: "",
+	headerMode: "split",
+	showSubheader: true,
+	leftHeader: "",
+	rightHeader: "",
+	leftSubheader: "",
+	rightSubheader: "",
+	bodyMode: "bullets",
+	text: "",
+	bulletsText: "",
+	categories: [{ id: makeId(), category: "", valuesText: "" }],
 });
 const parseTextareaLines = (value: string) =>
 	value
 		.split("\n")
 		.map((entry) => entry.trim())
 		.filter(Boolean);
+
+const MAX_HEADER_CONTACT_ITEMS = 3;
+const MAX_HEADER_LINK_ITEMS = 3;
+const MAX_CUSTOM_SECTION_BULLETS = 12;
+const HEADER_CONTACT_PLACEHOLDERS = [
+	"sample@email.com",
+	"+63 912 345 6789",
+	"Quezon City, Philippines",
+];
+const HEADER_LINK_PLACEHOLDERS = [
+	"https://linkedin.com/in/yourname",
+	"https://github.com/yourname",
+	"https://yourname.dev",
+];
+
+const parseCommaValues = (value: string) =>
+	value
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+
+const getCreateModalLabels = (kind: ResumeCreateModalKind) => {
+	switch (kind) {
+		case "experience":
+			return {
+				leftHeader: "Company",
+				rightHeader: "Location",
+				leftSubheader: "Role",
+				rightSubheader: "Date range (e.g. Jun 2025 - Dec 2025)",
+				body: "Bullets / details",
+			};
+		case "education":
+			return {
+				leftHeader: "School",
+				rightHeader: "Location",
+				leftSubheader: "Degree",
+				rightSubheader: "Graduation date",
+				body: "Details",
+			};
+		case "project":
+			return {
+				leftHeader: "Project name",
+				rightHeader: "Short description",
+				leftSubheader: "Subtitle (optional)",
+				rightSubheader: "Date / status (optional)",
+				body: "Highlights",
+			};
+		case "custom":
+			return {
+				leftHeader: "Left header",
+				rightHeader: "Right header",
+				leftSubheader: "Left subheader",
+				rightSubheader: "Right subheader",
+				body: "Details",
+			};
+		case "structured":
+		default:
+			return {
+				leftHeader: "Title",
+				rightHeader: "Location",
+				leftSubheader: "Subtitle",
+				rightSubheader: "Date",
+				body: "Details",
+			};
+	}
+};
+
+const parseDateRange = (value: string) => {
+	const trimmed = value.trim();
+	if (!trimmed) return { startDate: "", endDate: "", isCurrent: false };
+	const separators = [" - ", " – ", " — ", " to "];
+	for (const separator of separators) {
+		if (trimmed.includes(separator)) {
+			const [startRaw, endRaw] = trimmed.split(separator, 2);
+			const startDate = startRaw.trim();
+			const endDate = endRaw.trim();
+			const isCurrent = /present|current/i.test(endDate);
+			return {
+				startDate,
+				endDate: endDate || (isCurrent ? "Present" : ""),
+				isCurrent,
+			};
+		}
+	}
+	const isCurrent = /present|current/i.test(trimmed);
+	return {
+		startDate: trimmed,
+		endDate: isCurrent ? "Present" : "",
+		isCurrent,
+	};
+};
+
+const buildCreateModalBodyLines = (form: ResumeCreateFormState) => {
+	if (form.bodyMode === "text") {
+		return parseTextareaLines(form.text);
+	}
+	if (form.bodyMode === "categories") {
+		return form.categories
+			.map((row) => {
+				const category = row.category.trim();
+				const values = parseCommaValues(row.valuesText);
+				if (!category && !values.length) return "";
+				if (!category) return values.join(", ");
+				if (!values.length) return category;
+				return `${category}: ${values.join(", ")}`;
+			})
+			.filter(Boolean);
+	}
+	return parseTextareaLines(form.bulletsText);
+};
 
 const toSkillCategoryDrafts = (skills: string[]): SkillCategoryDraft[] => {
 	const groups = groupResumeSkills(skills);
@@ -237,22 +335,53 @@ const buildGuestResume = (): ResumeRecord => {
 			...starter.content,
 			header: {
 				...starter.content.header,
-				fullName: "",
-				headline: "",
+				fullName: "Your Full Name",
+				headline: "Your Role (e.g., Full Stack Developer)",
 				location: "",
-				email: "",
+				email: "sample@email.com",
+				contactItems: ["", "", ""],
+				linkItems: ["", ""],
 			},
-			summary: "",
-			experience: [],
-			education: [],
+			summary: "Write a short summary of your strongest skills and impact.",
+			experience: [
+				{
+					id: makeId(),
+					role: "",
+					company: "",
+					location: "",
+					startDate: "",
+					endDate: "",
+					isCurrent: false,
+					bullets: [""],
+				},
+			],
+			education: [
+				{
+					id: makeId(),
+					school: "",
+					degree: "",
+					location: "",
+					graduationDate: "",
+					details: [""],
+				},
+			],
 			skills: [],
-			projects: [],
+			projects: [
+				{
+					id: makeId(),
+					name: "",
+					description: "",
+					url: "",
+					highlights: [""],
+				},
+			],
 			certifications: [],
 			awards: [],
 			volunteer: [],
 			languages: [],
 			publications: [],
 			custom: [],
+			customSections: [],
 		},
 	};
 };
@@ -284,7 +413,6 @@ export default function ResumeBuilderPage() {
 	} | null>(null);
 	const [activeTab, setActiveTab] = useState("content");
 	const [previewOpen, setPreviewOpen] = useState(() => openedFromDashboardPreview);
-	const [isValidationSummaryExpanded, setIsValidationSummaryExpanded] = useState(false);
 	const [pdfPreviewNonce, setPdfPreviewNonce] = useState(0);
 	const [guestPdfPreviewUrl, setGuestPdfPreviewUrl] = useState<string>("");
 	const [guestPreviewAttempted, setGuestPreviewAttempted] = useState(false);
@@ -489,35 +617,32 @@ export default function ResumeBuilderPage() {
 		navigate("/dashboard/resume", { replace: true });
 	}, [hasSelectedVersionId, navigate, versionDetailQuery.isError]);
 
-	const liveValidation = useMemo(
-		() => (resume ? getResumeValidation(resume) : null),
+
+	const hasLanguagesContent = Boolean(resume?.content.languages.length);
+	const structuredSectionsWithContent = useMemo(
+		() =>
+			resume
+				? listSections.filter(
+						(section) =>
+							(resume.content[section.key] as ResumeStructuredListItem[]).length > 0,
+				  )
+				: [],
 		[resume],
 	);
-
-	const summaryWarnings = useMemo(() => {
+	const customSectionGroups = useMemo(() => {
 		if (!resume) return [];
-		const warnings: string[] = [];
-		if (resume.content.summary.length > 300) {
-			warnings.push("Summary is longer than recommended (300 chars).");
+		const grouped = new Map<string, ResumeDynamicSection[]>();
+		for (const section of resume.content.customSections) {
+			const title = section.title.trim() || "Untitled section";
+			const existing = grouped.get(title);
+			if (existing) {
+				existing.push(section);
+				continue;
+			}
+			grouped.set(title, [section]);
 		}
-		if (resume.content.summary.length > 600) {
-			warnings.push("Summary exceeds max length (600 chars).");
-		}
-		return warnings;
-	}, [resume?.content.summary]);
-
-	const skillsWarnings = useMemo(() => {
-		if (!resume) return [];
-		const warnings: string[] = [];
-		const count = serializeSkillCategoryDrafts(skillCategoryDrafts).length;
-		if (count < 8 || count > 24) {
-			warnings.push("8-24 skills is recommended.");
-		}
-		if (count > 40) {
-			warnings.push("Skills exceed max (40).");
-		}
-		return warnings;
-	}, [resume?.content.skills, skillCategoryDrafts]);
+		return Array.from(grouped.entries()).map(([title, items]) => ({ title, items }));
+	}, [resume]);
 
 	const contentSectionNav = useMemo(
 		() => [
@@ -527,14 +652,21 @@ export default function ResumeBuilderPage() {
 			{ id: "resume-content-experience", label: "Experience" },
 			{ id: "resume-content-education", label: "Education" },
 			{ id: "resume-content-projects", label: "Projects" },
-			{ id: "resume-content-languages", label: "Languages" },
-			...listSections.map((section) => ({
+			...(hasLanguagesContent ? [{ id: "resume-content-languages", label: "Languages" }] : []),
+			...structuredSectionsWithContent.map((section) => ({
 				id: `resume-content-${section.key}`,
 				label: section.title,
 			})),
+			{ id: "resume-content-custom", label: "Custom" },
 		],
-		[],
+		[hasLanguagesContent, structuredSectionsWithContent],
 	);
+
+	useEffect(() => {
+		if (!contentSectionNav.length) return;
+		if (contentSectionNav.some((section) => section.id === activeContentSection)) return;
+		setActiveContentSection(contentSectionNav[0]?.id ?? "resume-content-header");
+	}, [activeContentSection, contentSectionNav]);
 
 	const persistResumeWithContext = async (payload: ResumeRecord) => {
 		if (isGuestMode) {
@@ -762,6 +894,37 @@ export default function ResumeBuilderPage() {
 		return new Blob([response.data], { type: "application/pdf" });
 	};
 
+	const parsePdfValidationBlobError = async (error: AxiosError<Blob>) => {
+		let message = "Failed to generate PDF.";
+		const payload = error.response?.data;
+		if (!(payload instanceof Blob)) {
+			return message;
+		}
+		try {
+			const text = await payload.text();
+			const parsed = JSON.parse(text) as {
+				message?: string;
+				validation?: { errors?: Array<{ message?: string }> };
+			};
+			const validationMessages =
+				parsed.validation?.errors
+					?.map((entry) => String(entry?.message ?? "").trim())
+					.filter(Boolean) ?? [];
+			if (validationMessages.length) {
+				return validationMessages.join(" ");
+			}
+			if (parsed?.message) {
+				message = parsed.message;
+			}
+		} catch {
+			// Keep fallback message for non-JSON payloads.
+		}
+		return message;
+	};
+
+	const isValidationBlockedPdfError = (error: AxiosError<Blob>) =>
+		error.response?.status === 422;
+
 	const downloadGuestPdfMutation = useMutation({
 		mutationFn: requestGuestPdfBlob,
 		onSuccess: (blob) => {
@@ -779,19 +942,8 @@ export default function ResumeBuilderPage() {
 		},
 		onError: async (error) => {
 			const axiosError = error as AxiosError<Blob>;
-			let message = "Failed to generate PDF.";
-			const payload = axiosError.response?.data;
-			if (payload instanceof Blob) {
-				try {
-					const text = await payload.text();
-					const parsed = JSON.parse(text) as { message?: string };
-					if (parsed?.message) {
-						message = parsed.message;
-					}
-				} catch {
-					// Ignore parse failures and keep generic fallback.
-				}
-			}
+			if (isValidationBlockedPdfError(axiosError)) return;
+			const message = await parsePdfValidationBlobError(axiosError);
 			setToast({ type: "error", message });
 		},
 	});
@@ -803,19 +955,8 @@ export default function ResumeBuilderPage() {
 		},
 		onError: async (error) => {
 			const axiosError = error as AxiosError<Blob>;
-			let message = "Failed to refresh preview.";
-			const payload = axiosError.response?.data;
-			if (payload instanceof Blob) {
-				try {
-					const text = await payload.text();
-					const parsed = JSON.parse(text) as { message?: string };
-					if (parsed?.message) {
-						message = parsed.message;
-					}
-				} catch {
-					// Keep fallback message for non-JSON payloads.
-				}
-			}
+			if (isValidationBlockedPdfError(axiosError)) return;
+			const message = await parsePdfValidationBlobError(axiosError);
 			setToast({ type: "error", message });
 		},
 	});
@@ -878,8 +1019,7 @@ export default function ResumeBuilderPage() {
 			}
 			if (isPreviewKey) {
 				event.preventDefault();
-				if (isGuestMode) return;
-				setPreviewOpen(true);
+				openPreviewModal();
 				return;
 			}
 			if (key === "escape") {
@@ -1112,6 +1252,13 @@ export default function ResumeBuilderPage() {
 		setPreviewOpen(false);
 	};
 
+	const openPreviewModal = () => {
+		if (isGuestMode && !guestPdfPreviewUrl && !refreshGuestPreviewMutation.isPending) {
+			triggerGuestPreviewRefresh();
+		}
+		setPreviewOpen(true);
+	};
+
 	const commitSkillCategoryDraftsToResume = (nextDrafts: SkillCategoryDraft[]) => {
 		const nextSkills = serializeSkillCategoryDrafts(nextDrafts);
 		setResume((current) =>
@@ -1155,7 +1302,7 @@ export default function ResumeBuilderPage() {
 			(option) => option.key === selected,
 		)
 			? selected
-			: "ats_classic_v1";
+			: "deux_modern_v1";
 		if (resume.templateKey === nextTemplateKey) return;
 		if (isGuestMode) {
 			setResume((current) =>
@@ -1181,48 +1328,12 @@ export default function ResumeBuilderPage() {
 		});
 	};
 
-	const renderInlineWarnings = (messages: string[]) => {
-		if (!messages.length) return null;
-		return (
-			<ul className="mt-2 list-disc pl-5 text-xs text-amber-600 space-y-1">
-				{messages.map((message, index) => (
-					<li key={`${message}-${index}`}>{message}</li>
-				))}
-			</ul>
-		);
-	};
+	type HeaderStringFieldKey = Exclude<
+		keyof ResumeRecord["content"]["header"],
+		"contactItems" | "linkItems"
+	>;
 
-	const getExperienceWarnings = (bullets: string[]) => {
-		const warnings: string[] = [];
-		if (bullets.length < 3 || bullets.length > 6) {
-			warnings.push("3-6 bullets per role is recommended.");
-		}
-		if (bullets.length > 8) {
-			warnings.push("Max 8 bullets per role.");
-		}
-		if (bullets.some((bullet) => bullet.length > 140)) {
-			warnings.push("One or more bullets are longer than recommended (140 chars).");
-		}
-		if (bullets.some((bullet) => bullet.length > 220)) {
-			warnings.push("One or more bullets exceed max length (220 chars).");
-		}
-		return warnings;
-	};
-
-	const getCustomWarnings = (details: string[]) => {
-		const body = details.join(" ").trim();
-		const warnings: string[] = [];
-		if (!body) return warnings;
-		if (body.length > 300) {
-			warnings.push("Custom details are longer than recommended (300 chars).");
-		}
-		if (body.length > 500) {
-			warnings.push("Custom details exceed max length (500 chars).");
-		}
-		return warnings;
-	};
-
-	const setHeaderField = (key: keyof ResumeRecord["content"]["header"], value: string) => {
+	const setHeaderField = (key: HeaderStringFieldKey, value: string) => {
 		setResume((current) =>
 			current
 				? {
@@ -1234,6 +1345,60 @@ export default function ResumeBuilderPage() {
 				  }
 				: current,
 		);
+	};
+
+	const updateHeaderArrayItem = (
+		key: "contactItems" | "linkItems",
+		index: number,
+		value: string,
+	) => {
+		setResume((current) => {
+			if (!current) return current;
+			const nextItems = [...current.content.header[key]];
+			if (index < 0 || index >= nextItems.length) return current;
+			nextItems[index] = value;
+			return {
+				...current,
+				content: {
+					...current.content,
+					header: { ...current.content.header, [key]: nextItems },
+				},
+			};
+		});
+	};
+
+	const addHeaderArrayItem = (key: "contactItems" | "linkItems") => {
+		setResume((current) => {
+			if (!current) return current;
+			const max = key === "contactItems" ? MAX_HEADER_CONTACT_ITEMS : MAX_HEADER_LINK_ITEMS;
+			if (current.content.header[key].length >= max) return current;
+			return {
+				...current,
+				content: {
+					...current.content,
+					header: {
+						...current.content.header,
+						[key]: [...current.content.header[key], ""],
+					},
+				},
+			};
+		});
+	};
+
+	const removeHeaderArrayItem = (key: "contactItems" | "linkItems", index: number) => {
+		setResume((current) => {
+			if (!current) return current;
+			return {
+				...current,
+				content: {
+					...current.content,
+					header: {
+						...current.content.header,
+						[key]: current.content.header[key].filter((_, itemIndex) => itemIndex !== index),
+					},
+				},
+			};
+		});
 	};
 
 	const handleHeaderPhotoUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1262,8 +1427,8 @@ export default function ResumeBuilderPage() {
 		setResume((current) => {
 			if (!current) return current;
 			const nextItems = [...(current.content[section] as ResumeStructuredListItem[])];
+			if (index < 0 || index >= nextItems.length) return current;
 			const target = nextItems[index];
-			if (!target) return current;
 			nextItems[index] = {
 				...target,
 				[field]: field === "details" ? parseTextareaLines(value) : value,
@@ -1287,70 +1452,97 @@ export default function ResumeBuilderPage() {
 		setCreateForm(makeCreateFormDefaults());
 	};
 
-	const openCreateModal = (modal: ResumeCreateModalState) => {
-		setCreateForm(makeCreateFormDefaults());
+	const openCreateModal = (
+		modal: ResumeCreateModalState,
+		overrides?: Partial<ResumeCreateFormState>,
+	) => {
+		const defaults = makeCreateFormDefaults();
+		setCreateForm({
+			...defaults,
+			...overrides,
+			categories: overrides?.categories ?? defaults.categories,
+		});
 		setCreateModal(modal);
 	};
 
 	const submitCreateModal = () => {
 		if (!createModal) return;
+		const bodyLines = buildCreateModalBodyLines(createForm);
+		const sectionTitle = createForm.sectionTitle.trim() || "Custom Section";
+		const effectiveLeftHeader =
+			createForm.headerMode === "none"
+				? createForm.leftHeader.trim()
+				: createForm.leftHeader.trim();
+		const effectiveRightHeader =
+			createForm.headerMode === "split" ? createForm.rightHeader.trim() : "";
+		const effectiveLeftSubheader =
+			createForm.headerMode === "split" && createForm.showSubheader
+				? createForm.leftSubheader.trim()
+				: "";
+		const effectiveRightSubheader =
+			createForm.headerMode === "split" && createForm.showSubheader
+				? createForm.rightSubheader.trim()
+				: "";
 		setResume((current) => {
 			if (!current) return current;
 			switch (createModal.kind) {
 				case "experience":
-					return {
-						...current,
-						content: {
-							...current.content,
-							experience: [
-								...current.content.experience,
-								{
-									id: makeId(),
-									role: createForm.experienceRole.trim(),
-									company: createForm.experienceCompany.trim(),
-									location: createForm.experienceLocation.trim(),
-									startDate: createForm.experienceStartDate.trim(),
-									endDate: createForm.experienceEndDate.trim(),
-									isCurrent: false,
-									bullets: parseTextareaLines(createForm.experienceBullets),
-								},
-							],
-						},
-					};
+					{
+						const range = parseDateRange(effectiveRightSubheader);
+						return {
+							...current,
+							content: {
+								...current.content,
+								experience: [
+									...current.content.experience,
+									{
+										id: makeId(),
+										role: effectiveLeftSubheader,
+										company: effectiveLeftHeader,
+										location: effectiveRightHeader,
+										startDate: range.startDate,
+										endDate: range.endDate,
+										isCurrent: range.isCurrent,
+										bullets: bodyLines,
+									},
+								],
+							},
+						};
+					}
 				case "education":
 					return {
 						...current,
 						content: {
-							...current.content,
-							education: [
-								...current.content.education,
-								{
-									id: makeId(),
-									school: createForm.educationSchool.trim(),
-									degree: createForm.educationDegree.trim(),
-									location: createForm.educationLocation.trim(),
-									graduationDate: createForm.educationGraduationDate.trim(),
-									details: parseTextareaLines(createForm.educationDetails),
-								},
-							],
-						},
+								...current.content,
+								education: [
+									...current.content.education,
+									{
+										id: makeId(),
+										school: effectiveLeftHeader,
+										degree: effectiveLeftSubheader,
+										location: effectiveRightHeader,
+										graduationDate: effectiveRightSubheader,
+										details: bodyLines,
+									},
+								],
+							},
 					};
 				case "project":
 					return {
 						...current,
 						content: {
 							...current.content,
-							projects: [
-								...current.content.projects,
-								{
-									id: makeId(),
-									name: createForm.projectName.trim(),
-									description: createForm.projectDescription.trim(),
-									url: createForm.projectUrl.trim(),
-									highlights: parseTextareaLines(createForm.projectHighlights),
-								},
-							],
-						},
+								projects: [
+									...current.content.projects,
+									{
+										id: makeId(),
+										name: effectiveLeftHeader,
+										description: effectiveRightHeader || effectiveLeftSubheader,
+										url: "",
+										highlights: bodyLines,
+									},
+								],
+							},
 					};
 				case "structured":
 					if (!createModal.sectionKey) return current;
@@ -1358,16 +1550,58 @@ export default function ResumeBuilderPage() {
 						...current,
 						content: {
 							...current.content,
-							[createModal.sectionKey]: [
-								...(current.content[createModal.sectionKey] as ResumeStructuredListItem[]),
+								[createModal.sectionKey]: [
+									...(current.content[createModal.sectionKey] as ResumeStructuredListItem[]),
+									{
+										...createResumeListItem(),
+										title: effectiveLeftHeader,
+										subtitle: effectiveLeftSubheader,
+										date: effectiveRightSubheader,
+										location: effectiveRightHeader,
+										details: bodyLines,
+										url: "",
+									},
+								],
+							},
+						};
+				case "custom":
+					return {
+						...current,
+						content: {
+							...current.content,
+							customSections: [
+								...current.content.customSections,
 								{
-									...createResumeListItem(),
-									title: createForm.structuredTitle.trim(),
-									subtitle: createForm.structuredSubtitle.trim(),
-									date: createForm.structuredDate.trim(),
-									location: createForm.structuredLocation.trim(),
-									details: parseTextareaLines(createForm.structuredDetails),
-									url: createForm.structuredUrl.trim(),
+									id: makeId(),
+									title: sectionTitle,
+									headerMode: createForm.headerMode,
+									bodyMode: createForm.bodyMode,
+									showSubheader: createForm.showSubheader,
+									leftHeader: effectiveLeftHeader,
+									rightHeader: effectiveRightHeader,
+									leftSubheader: effectiveLeftSubheader,
+									rightSubheader: effectiveRightSubheader,
+									text:
+										createForm.bodyMode === "text"
+											? createForm.text.trim()
+											: "",
+									bullets:
+										createForm.bodyMode === "bullets"
+											? parseTextareaLines(createForm.bulletsText).slice(
+													0,
+													MAX_CUSTOM_SECTION_BULLETS,
+											  )
+											: [],
+									categories:
+										createForm.bodyMode === "categories"
+											? createForm.categories
+													.map((row) => ({
+														id: row.id,
+														category: row.category.trim(),
+														values: parseCommaValues(row.valuesText),
+													}))
+													.filter((row) => row.category || row.values.length)
+											: [],
 								},
 							],
 						},
@@ -1555,20 +1789,18 @@ export default function ResumeBuilderPage() {
 										? "Saving..."
 										: "Save changes"}
 							</Button>
-							{!isGuestMode ? (
-								<Button
-									type="button"
-									variant="outline"
-									className="w-full justify-start"
-									onClick={() => {
-										setMobileActionsOpen(false);
-										setPreviewOpen(true);
-									}}
-								>
-									<Eye className="size-4" />
-									Open Preview
-								</Button>
-							) : null}
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-start"
+								onClick={() => {
+									setMobileActionsOpen(false);
+									openPreviewModal();
+								}}
+							>
+								<Eye className="size-4" />
+								Open Preview
+							</Button>
 							{!isGuestMode ? (
 								<Button
 									type="button"
@@ -1629,10 +1861,11 @@ export default function ResumeBuilderPage() {
 			</Sheet>
 
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
-				<TabsList className="!h-auto w-full flex-wrap justify-start gap-1">
-					<TabsTrigger value="content" className="h-9 flex-none px-4">
-						Content
-					</TabsTrigger>
+				<div className="builder-sticky-subnav rounded-xl border border-border/60 bg-background/90 p-1 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70">
+					<TabsList className="!h-auto w-full flex-wrap justify-start gap-1">
+						<TabsTrigger value="content" className="h-9 flex-none px-4">
+							Content
+						</TabsTrigger>
 						<TabsTrigger value="layout" className="h-9 flex-none px-4">
 							Layout
 						</TabsTrigger>
@@ -1640,6 +1873,7 @@ export default function ResumeBuilderPage() {
 							Preview
 						</TabsTrigger>
 					</TabsList>
+				</div>
 
 				<TabsContent value="content" className="min-w-0 space-y-4">
 					<div
@@ -1694,71 +1928,145 @@ export default function ResumeBuilderPage() {
 						</aside>
 
 						<div className="min-w-0 space-y-4 pb-24">
-					<Card id="resume-content-header" className={contentSectionCardClassName}>
-						<CardHeader>
-							<CardTitle className="text-lg">Header</CardTitle>
-						</CardHeader>
-						<CardContent className="grid gap-3 md:grid-cols-2">
+						<Card id="resume-content-header" className={contentSectionCardClassName}>
+							<CardHeader>
+								<CardTitle className="text-lg">Header</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-5">
+								<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
 									<Label>Full name</Label>
 									<Input
+										maxLength={60}
+										placeholder="Your Full Name"
 										value={resume.content.header.fullName}
-										onChange={(event) => setHeaderField("fullName", event.target.value)}
-									/>
-								</div>
+									onChange={(event) => setHeaderField("fullName", event.target.value)}
+								/>
+							</div>
 								<div className="space-y-2">
 									<Label>Headline</Label>
 									<Input
-										value={resume.content.header.headline}
+									maxLength={90}
+									placeholder="Your Role (e.g., Full Stack Developer)"
+									value={resume.content.header.headline}
 										onChange={(event) => setHeaderField("headline", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label>Email</Label>
-									<Input
-										value={resume.content.header.email}
-										onChange={(event) => setHeaderField("email", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label>Phone</Label>
-									<Input
-										value={resume.content.header.phone}
-										onChange={(event) => setHeaderField("phone", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label>Location</Label>
-									<Input
-										value={resume.content.header.location}
-										onChange={(event) => setHeaderField("location", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label>Website URL</Label>
-									<Input
-										value={resume.content.header.websiteUrl}
-										onChange={(event) => setHeaderField("websiteUrl", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label>LinkedIn URL</Label>
-									<Input
-										value={resume.content.header.linkedinUrl}
-										onChange={(event) => setHeaderField("linkedinUrl", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label>GitHub URL</Label>
-									<Input
-										value={resume.content.header.githubUrl}
-										onChange={(event) => setHeaderField("githubUrl", event.target.value)}
-									/>
-								</div>
-								<div className="space-y-2 md:col-span-2">
-									<Label>Header Photo (1x1)</Label>
-									<div className="flex flex-wrap items-center gap-3">
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label>Email (required)</Label>
 										<Input
+											type="email"
+											maxLength={90}
+											placeholder="sample@email.com"
+											value={resume.content.header.email}
+											onChange={(event) => setHeaderField("email", event.target.value)}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label>Location</Label>
+										<Input
+											maxLength={90}
+											placeholder="Quezon City, Philippines"
+											value={resume.content.header.location}
+											onChange={(event) => setHeaderField("location", event.target.value)}
+										/>
+									</div>
+								</div>
+									<div className="space-y-3">
+										<div className="flex items-center justify-between">
+											<Label>Contact info</Label>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="shrink-0"
+												onClick={() => addHeaderArrayItem("contactItems")}
+												disabled={
+													resume.content.header.contactItems.length >=
+													MAX_HEADER_CONTACT_ITEMS
+											}
+										>
+											Add contact
+										</Button>
+									</div>
+										<div className="space-y-2">
+											{resume.content.header.contactItems.map((item, index) => (
+												<div key={`contact-${index}`} className="flex items-center gap-3">
+													<Input
+														maxLength={90}
+														placeholder={
+															HEADER_CONTACT_PLACEHOLDERS[index] ?? `Contact ${index + 1}`
+														}
+														value={item}
+													onChange={(event) =>
+														updateHeaderArrayItem("contactItems", index, event.target.value)
+													}
+												/>
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon"
+													onClick={() => removeHeaderArrayItem("contactItems", index)}
+												>
+													<Trash2 className="size-4" />
+												</Button>
+											</div>
+										))}
+										{resume.content.header.contactItems.length === 0 ? (
+											<div className="text-xs text-muted-foreground">
+												Add up to {MAX_HEADER_CONTACT_ITEMS} contact entries.
+											</div>
+										) : null}
+										</div>
+									</div>
+									<div className="space-y-3">
+										<div className="flex items-center justify-between">
+											<Label>Header links</Label>
+											<Button
+												type="button"
+												size="sm"
+												variant="outline"
+												className="shrink-0"
+												onClick={() => addHeaderArrayItem("linkItems")}
+												disabled={resume.content.header.linkItems.length >= MAX_HEADER_LINK_ITEMS}
+											>
+											Add link
+										</Button>
+									</div>
+										<div className="space-y-2">
+											{resume.content.header.linkItems.map((item, index) => (
+												<div key={`link-${index}`} className="flex items-center gap-3">
+													<Input
+														maxLength={90}
+														placeholder={
+															HEADER_LINK_PLACEHOLDERS[index] ?? `Link ${index + 1}`
+														}
+														value={item}
+													onChange={(event) =>
+														updateHeaderArrayItem("linkItems", index, event.target.value)
+													}
+												/>
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon"
+													onClick={() => removeHeaderArrayItem("linkItems", index)}
+												>
+													<Trash2 className="size-4" />
+												</Button>
+											</div>
+										))}
+										{resume.content.header.linkItems.length === 0 ? (
+											<div className="text-xs text-muted-foreground">
+												Add up to {MAX_HEADER_LINK_ITEMS} links.
+											</div>
+										) : null}
+										</div>
+									</div>
+									<div className="space-y-3">
+										<Label>Header Photo (1x1)</Label>
+										<div className="flex flex-wrap items-center gap-3">
+											<Input
 											type="file"
 											accept="image/png,image/jpeg,image/jpg"
 											onChange={handleHeaderPhotoUpload}
@@ -1794,6 +2102,7 @@ export default function ResumeBuilderPage() {
 						<CardContent>
 							<Textarea
 								rows={4}
+								placeholder="2-3 lines on your strengths, stack, and measurable impact."
 								value={resume.content.summary}
 								onChange={(event) =>
 									setResume((current) =>
@@ -1809,7 +2118,6 @@ export default function ResumeBuilderPage() {
 									)
 								}
 							/>
-							{renderInlineWarnings(summaryWarnings)}
 						</CardContent>
 					</Card>
 
@@ -1889,7 +2197,6 @@ export default function ResumeBuilderPage() {
 										Add category line
 									</Button>
 								</div>
-								{renderInlineWarnings(skillsWarnings)}
 							</CardContent>
 						</Card>
 
@@ -1899,15 +2206,16 @@ export default function ResumeBuilderPage() {
 							<Button
 								type="button"
 								variant="outline"
-								onClick={() =>
-									openCreateModal({
-										kind: "experience",
-										title: "Add experience",
-										subtitle: "Create a role entry before editing details inline.",
-										submitLabel: "Add role",
-									})
-								}
-							>
+									onClick={() =>
+										openCreateModal({
+											kind: "experience",
+											title: "Add experience",
+											subtitle: "Use the shared section item form.",
+											submitLabel: "Add role",
+											lockSectionTitle: true,
+										}, { sectionTitle: "Experience", headerMode: "split", showSubheader: true })
+									}
+								>
 								Add role
 							</Button>
 						</CardHeader>
@@ -2081,7 +2389,6 @@ export default function ResumeBuilderPage() {
 												)
 											}
 										/>
-									{renderInlineWarnings(getExperienceWarnings(item.bullets))}
 								</div>
 							))}
 						</CardContent>
@@ -2093,15 +2400,16 @@ export default function ResumeBuilderPage() {
 							<Button
 								type="button"
 								variant="outline"
-								onClick={() =>
-									openCreateModal({
-										kind: "education",
-										title: "Add education",
-										subtitle: "Start with the core details, then refine in the editor.",
-										submitLabel: "Add education",
-									})
-								}
-							>
+									onClick={() =>
+										openCreateModal({
+											kind: "education",
+											title: "Add education",
+											subtitle: "Use the shared section item form.",
+											submitLabel: "Add education",
+											lockSectionTitle: true,
+										}, { sectionTitle: "Education", headerMode: "split", showSubheader: true })
+									}
+								>
 								Add education
 							</Button>
 						</CardHeader>
@@ -2253,15 +2561,16 @@ export default function ResumeBuilderPage() {
 							<Button
 								type="button"
 								variant="outline"
-								onClick={() =>
-									openCreateModal({
-										kind: "project",
-										title: "Add project",
-										subtitle: "Capture the project basics before polishing content.",
-										submitLabel: "Add project",
-									})
-								}
-							>
+									onClick={() =>
+										openCreateModal({
+											kind: "project",
+											title: "Add project",
+											subtitle: "Use the shared section item form.",
+											submitLabel: "Add project",
+											lockSectionTitle: true,
+										}, { sectionTitle: "Projects", headerMode: "split", showSubheader: true })
+									}
+								>
 								Add project
 							</Button>
 						</CardHeader>
@@ -2388,55 +2697,58 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-						<Card id="resume-content-languages" className={contentSectionCardClassName}>
-							<CardHeader>
-								<CardTitle className="text-lg">Languages (comma separated)</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<Input
-									value={languagesDraftInput}
-									onChange={(event) => setLanguagesDraftInput(event.target.value)}
-									onBlur={() =>
-										setResume((current) =>
-											current
-												? {
-														...current,
-														content: {
-															...current.content,
-															languages: languagesDraftInput
-																.split(",")
-																.map((entry) => entry.trim())
-																.filter(Boolean),
-														},
-												  }
-												: current,
-										)
-									}
-								/>
-							</CardContent>
-						</Card>
+							{resume.content.languages.length ? (
+								<Card id="resume-content-languages" className={contentSectionCardClassName}>
+									<CardHeader>
+										<CardTitle className="text-lg">Languages (comma separated)</CardTitle>
+									</CardHeader>
+								<CardContent>
+									<Input
+										value={languagesDraftInput}
+										onChange={(event) => setLanguagesDraftInput(event.target.value)}
+										onBlur={() =>
+											setResume((current) =>
+												current
+													? {
+															...current,
+															content: {
+																...current.content,
+																languages: languagesDraftInput
+																	.split(",")
+																	.map((entry) => entry.trim())
+																	.filter(Boolean),
+															},
+													  }
+													: current,
+											)
+										}
+									/>
+									</CardContent>
+								</Card>
+							) : null}
 
-					{listSections.map((section) => (
-						<Card
-							key={section.key}
-							id={`resume-content-${section.key}`}
-							className={contentSectionCardClassName}
-						>
+						{structuredSectionsWithContent.map((section) => (
+							<Card
+								key={section.key}
+								id={`resume-content-${section.key}`}
+								className={contentSectionCardClassName}
+							>
 							<CardHeader className="flex-row items-center justify-between">
 								<CardTitle className="text-lg">{section.title}</CardTitle>
 								<Button
 									type="button"
 									variant="outline"
-									onClick={() =>
-										openCreateModal({
-											kind: "structured",
-											sectionKey: section.key,
-											title: `Add ${section.title} item`,
-											subtitle: "Use this modal to create a structured item.",
-											submitLabel: "Add item",
-										})
-									}
-								>
+										onClick={() =>
+											openCreateModal({
+												kind: "structured",
+												sectionKey: section.key,
+												title: `Add ${section.title} item`,
+												subtitle: "Use the shared section item form.",
+												submitLabel: "Add item",
+												lockSectionTitle: true,
+											}, { sectionTitle: section.title, headerMode: "split", showSubheader: true })
+										}
+									>
 									Add item
 								</Button>
 							</CardHeader>
@@ -2514,18 +2826,121 @@ export default function ResumeBuilderPage() {
 												updateListSection(section.key, index, "url", event.target.value)
 											}
 										/>
-										{section.key === "custom"
-											? renderInlineWarnings(getCustomWarnings(item.details))
-											: null}
 									</div>
 								))}
-							</CardContent>
-						</Card>
-					))}
-						<div className="h-20" aria-hidden="true" />
+								</CardContent>
+							</Card>
+						))}
+									<Card id="resume-content-custom" className={contentSectionCardClassName}>
+										<CardHeader className="flex-row items-center justify-between">
+											<div>
+												<CardTitle className="text-lg">Custom Sections</CardTitle>
+												<CardDescription>
+													Create sections with a section title, then add multiple items under them.
+												</CardDescription>
+											</div>
+											<Button
+												type="button"
+												variant="outline"
+												onClick={() =>
+													openCreateModal(
+														{
+															kind: "custom",
+															title: "Add custom section item",
+															subtitle: "Use the same item form used by built-in sections.",
+															submitLabel: "Add item",
+															lockSectionTitle: false,
+														},
+														{ headerMode: "split", showSubheader: true },
+													)
+												}
+											>
+												Add section
+											</Button>
+										</CardHeader>
+										<CardContent className="space-y-3">
+											{customSectionGroups.map((group) => (
+												<div key={group.title} className={itemBlockClassName}>
+													<div className="flex flex-wrap items-center justify-between gap-2">
+														<div className="text-sm font-semibold">{group.title}</div>
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															onClick={() =>
+																openCreateModal(
+																	{
+																		kind: "custom",
+																		title: `Add ${group.title} item`,
+																		subtitle: "Add another item under this section title.",
+																		submitLabel: "Add item",
+																		lockSectionTitle: true,
+																	},
+																	{
+																		sectionTitle: group.title,
+																		headerMode: "split",
+																		showSubheader: true,
+																	},
+																)
+															}
+														>
+															Add item
+														</Button>
+													</div>
+													<div className="space-y-2">
+														{group.items.map((entry, itemIndex) => (
+															<div
+																key={entry.id}
+																className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2 text-sm"
+															>
+																<div className="min-w-0">
+																	<div className="font-medium">Item {itemIndex + 1}</div>
+																	<div className="truncate text-xs text-muted-foreground">
+																		{entry.headerMode === "split"
+																			? `${entry.leftHeader || "-"} | ${entry.rightHeader || "-"}`
+																			: entry.leftHeader || entry.text || "No content yet"}
+																	</div>
+																</div>
+																<Button
+																	type="button"
+																	variant="ghost"
+																	size="sm"
+																	onClick={() =>
+																		setResume((current) =>
+																			current
+																				? {
+																						...current,
+																						content: {
+																							...current.content,
+																							customSections:
+																								current.content.customSections.filter(
+																									(section) => section.id !== entry.id,
+																								),
+																						},
+																				  }
+																				: current,
+																		)
+																	}
+																>
+																	<Trash2 className="size-4" />
+																	Remove
+																</Button>
+															</div>
+														))}
+													</div>
+												</div>
+											))}
+											{resume.content.customSections.length === 0 ? (
+												<div className="text-sm text-muted-foreground">
+													Add a custom section title and first item using the modal.
+												</div>
+											) : null}
+										</CardContent>
+									</Card>
+							<div className="h-20" aria-hidden="true" />
+							</div>
 						</div>
-					</div>
-				</TabsContent>
+					</TabsContent>
 
 				<TabsContent value="layout" className="space-y-4">
 					<Card className={editorCardClassName}>
@@ -2645,71 +3060,6 @@ export default function ResumeBuilderPage() {
 				</TabsContent>
 
 					<TabsContent value="preview" className="space-y-4">
-					<Card className={editorCardClassName}>
-						<button
-							type="button"
-							className="flex w-full items-center gap-4 px-5 py-3 text-left"
-							onClick={() => setIsValidationSummaryExpanded((current) => !current)}
-							aria-expanded={isValidationSummaryExpanded}
-							aria-controls="resume-validation-summary-details"
-						>
-							<span className="text-lg font-medium">Validation summary</span>
-							<div className="ml-auto flex items-center gap-3 text-sm">
-								<span
-									className={
-										liveValidation?.errors.length
-											? "whitespace-nowrap font-medium text-rose-600"
-											: "whitespace-nowrap font-medium text-emerald-600"
-									}
-								>
-									Errors: {liveValidation?.errors.length ?? 0}
-								</span>
-								<span
-									className={
-										liveValidation?.warnings.length
-											? "whitespace-nowrap font-medium text-amber-600"
-											: "whitespace-nowrap font-medium text-emerald-600"
-									}
-								>
-									Warnings: {liveValidation?.warnings.length ?? 0}
-								</span>
-							</div>
-							<ChevronDown
-								className={`size-4 text-muted-foreground transition-transform ${
-									isValidationSummaryExpanded ? "rotate-180" : ""
-								}`}
-							/>
-						</button>
-						{isValidationSummaryExpanded ? (
-							<CardContent id="resume-validation-summary-details" className="space-y-2 pt-0">
-								<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-									Warnings are advisory only. You can still create/save your resume.
-									Only hard errors block PDF export.
-								</div>
-								<div className="text-sm font-medium">Errors</div>
-								{liveValidation?.errors.length ? (
-									<ul className="list-disc space-y-1 pl-5 text-sm text-rose-600">
-										{liveValidation.errors.map((error) => (
-											<li key={error.code + error.message}>{error.message}</li>
-										))}
-									</ul>
-								) : (
-									<div className="text-sm text-emerald-600">No hard errors.</div>
-								)}
-								<div className="pt-2 text-sm font-medium">Warnings</div>
-								{liveValidation?.warnings.length ? (
-									<ul className="list-disc space-y-1 pl-5 text-sm text-amber-600">
-										{liveValidation.warnings.map((warning) => (
-											<li key={warning.code + warning.message}>{warning.message}</li>
-										))}
-									</ul>
-								) : (
-									<div className="text-sm text-emerald-600">No warnings.</div>
-								)}
-							</CardContent>
-						) : null}
-					</Card>
-
 					<Card className={editorCardClassName}>
 						<CardHeader className="gap-3">
 							<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -2883,6 +3233,41 @@ export default function ResumeBuilderPage() {
 										</div>
 									) : null}
 
+									{visibleSectionOrder.includes("custom") &&
+									resume.content.customSections.length ? (
+										<div className="space-y-2">
+											<div className="font-semibold">Custom Sections</div>
+											{resume.content.customSections.map((section) => (
+												<div key={section.id} className="rounded-md border p-2">
+													<div className="font-medium">{section.title || "Custom"}</div>
+													{section.bodyMode === "text" ? (
+														<div>{section.text}</div>
+													) : null}
+													{section.bodyMode === "bullets" ? (
+														<ul className="mt-1 list-disc space-y-1 pl-4">
+															{section.bullets.map((bullet, index) => (
+																<li key={`${section.id}-bullet-${index}`}>{bullet}</li>
+															))}
+														</ul>
+													) : null}
+													{section.bodyMode === "categories" ? (
+														<div className="space-y-1">
+															{section.categories.map((row) => (
+																<div key={row.id}>
+																	<span className="font-medium">
+																		{row.category}
+																		{row.category ? ": " : ""}
+																	</span>
+																	<span>{row.values.join(", ")}</span>
+																</div>
+															))}
+														</div>
+													) : null}
+												</div>
+											))}
+										</div>
+									) : null}
+
 									{visibleSectionOrder.includes("languages") &&
 									resume.content.languages.length ? (
 										<div className="space-y-1">
@@ -2896,6 +3281,15 @@ export default function ResumeBuilderPage() {
 					</Card>
 					</TabsContent>
 				</Tabs>
+
+			{!previewOpen ? (
+				<div className="fixed right-4 bottom-24 z-30 xl:hidden">
+					<Button type="button" size="sm" className="shadow-md" onClick={openPreviewModal}>
+						<Eye className="size-4" />
+						Preview
+					</Button>
+				</div>
+			) : null}
 
 			{!isGuestMode && !previewOpen ? (
 				<div
@@ -2964,7 +3358,7 @@ export default function ResumeBuilderPage() {
 											type="button"
 											size="sm"
 											variant="outline"
-											onClick={() => setPreviewOpen(true)}
+											onClick={openPreviewModal}
 										>
 											Fullscreen
 										</Button>
@@ -2987,7 +3381,7 @@ export default function ResumeBuilderPage() {
 				</div>
 			) : null}
 
-			{!isGuestMode && previewOpen ? (
+			{previewOpen ? (
 				<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
 					<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:rounded-xl">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
@@ -3008,11 +3402,30 @@ export default function ResumeBuilderPage() {
 						</div>
 						<div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
 							<div className="h-full overflow-hidden rounded-md border">
-								<iframe
-									title="Resume PDF Preview Modal"
-									src={pdfInlineHref}
-									className="h-full w-full bg-white"
-								/>
+								{effectivePdfInlineHref ? (
+									<iframe
+										title="Resume PDF Preview Modal"
+										src={effectivePdfInlineHref}
+										className="h-full w-full bg-white"
+									/>
+								) : (
+									<div className="flex h-full items-center justify-center bg-muted/20 p-4">
+										<div className="space-y-3 text-center">
+											<div className="text-sm text-muted-foreground">
+												Generate preview to see your resume PDF.
+											</div>
+											<Button
+												type="button"
+												onClick={triggerGuestPreviewRefresh}
+												disabled={refreshGuestPreviewMutation.isPending}
+											>
+												{refreshGuestPreviewMutation.isPending
+													? "Generating preview..."
+													: "Generate Preview"}
+											</Button>
+										</div>
+									</div>
+								)}
 							</div>
 						</div>
 					</div>
@@ -3176,252 +3589,232 @@ export default function ResumeBuilderPage() {
 
 			{createModal ? (
 				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
-					<Card className="flex max-h-[88vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
-						<CardHeader>
-							<CardTitle className="text-lg">{createModal.title}</CardTitle>
-							<CardDescription>{createModal.subtitle}</CardDescription>
-						</CardHeader>
-						<CardContent className="min-h-0 space-y-3 overflow-y-auto text-sm">
-							{createModal.kind === "experience" ? (
-								<>
-									<div className="grid gap-2 sm:grid-cols-2">
-										<Input
-											placeholder="Role"
-											value={createForm.experienceRole}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													experienceRole: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Company"
-											value={createForm.experienceCompany}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													experienceCompany: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Location"
-											value={createForm.experienceLocation}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													experienceLocation: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Start date"
-											value={createForm.experienceStartDate}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													experienceStartDate: event.target.value,
-												}))
-											}
-										/>
-									</div>
-									<Input
-										placeholder="End date"
-										value={createForm.experienceEndDate}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												experienceEndDate: event.target.value,
-											}))
-										}
-									/>
-									<Textarea
-										rows={4}
-										placeholder="Bullets (one per line)"
-										value={createForm.experienceBullets}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												experienceBullets: event.target.value,
-											}))
-										}
-									/>
-								</>
-							) : null}
-
-							{createModal.kind === "education" ? (
-								<>
-									<div className="grid gap-2 sm:grid-cols-2">
-										<Input
-											placeholder="Degree"
-											value={createForm.educationDegree}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													educationDegree: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="School"
-											value={createForm.educationSchool}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													educationSchool: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Location"
-											value={createForm.educationLocation}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													educationLocation: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Graduation date"
-											value={createForm.educationGraduationDate}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													educationGraduationDate: event.target.value,
-												}))
-											}
-										/>
-									</div>
-									<Textarea
-										rows={3}
-										placeholder="Details (one per line)"
-										value={createForm.educationDetails}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												educationDetails: event.target.value,
-											}))
-										}
-									/>
-								</>
-							) : null}
-
-							{createModal.kind === "project" ? (
-								<>
-									<Input
-										placeholder="Project name"
-										value={createForm.projectName}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												projectName: event.target.value,
-											}))
-										}
-									/>
-									<Textarea
-										rows={3}
-										placeholder="Description"
-										value={createForm.projectDescription}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												projectDescription: event.target.value,
-											}))
-										}
-									/>
-									<Input
-										placeholder="Project URL"
-										value={createForm.projectUrl}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												projectUrl: event.target.value,
-											}))
-										}
-									/>
-									<Textarea
-										rows={3}
-										placeholder="Highlights (one per line)"
-										value={createForm.projectHighlights}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												projectHighlights: event.target.value,
-											}))
-										}
-									/>
-								</>
-							) : null}
-
-							{createModal.kind === "structured" ? (
-								<>
-									<div className="grid gap-2 sm:grid-cols-2">
-										<Input
-											placeholder="Title"
-											value={createForm.structuredTitle}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													structuredTitle: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Subtitle"
-											value={createForm.structuredSubtitle}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													structuredSubtitle: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Date"
-											value={createForm.structuredDate}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													structuredDate: event.target.value,
-												}))
-											}
-										/>
-										<Input
-											placeholder="Location"
-											value={createForm.structuredLocation}
-											onChange={(event) =>
-												setCreateForm((current) => ({
-													...current,
-													structuredLocation: event.target.value,
-												}))
-											}
-										/>
-									</div>
-									<Input
-										placeholder="URL"
-										value={createForm.structuredUrl}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												structuredUrl: event.target.value,
-											}))
-										}
-									/>
-									<Textarea
-										rows={3}
-										placeholder="Details (one per line)"
-										value={createForm.structuredDetails}
-										onChange={(event) =>
-											setCreateForm((current) => ({
-												...current,
-												structuredDetails: event.target.value,
-											}))
-										}
-									/>
-								</>
-							) : null}
+						<Card className="flex max-h-[88vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
+							<CardHeader>
+								<CardTitle className="text-lg">{createModal.title}</CardTitle>
+								<CardDescription>{createModal.subtitle}</CardDescription>
+							</CardHeader>
+								<CardContent className="min-h-0 space-y-3 overflow-y-auto text-sm">
+									{(() => {
+										const labels = getCreateModalLabels(createModal.kind);
+										return (
+											<>
+												<div className="space-y-2">
+													<Label>Section title</Label>
+													<Input
+														placeholder="Section title"
+														value={createForm.sectionTitle}
+														disabled={Boolean(createModal.lockSectionTitle)}
+														onChange={(event) =>
+															setCreateForm((current) => ({
+																...current,
+																sectionTitle: event.target.value,
+															}))
+														}
+													/>
+												</div>
+												<div className="grid gap-2 sm:grid-cols-2">
+													<div className="space-y-2">
+														<Label>Header mode</Label>
+														<select
+															className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+															value={createForm.headerMode}
+															onChange={(event) =>
+																setCreateForm((current) => ({
+																	...current,
+																	headerMode:
+																		event.target.value as ResumeDynamicSectionHeaderMode,
+																	showSubheader:
+																		event.target.value === "split"
+																			? true
+																			: current.showSubheader,
+																}))
+															}
+														>
+															<option value="none">No split header</option>
+															<option value="split">Split header (left/right)</option>
+														</select>
+													</div>
+													{createForm.headerMode === "split" ? (
+														<div className="space-y-2">
+															<Label>Subheader row</Label>
+															<div className="flex items-center gap-2 rounded-md border border-border/70 px-3 py-2">
+																<Checkbox
+																	checked={createForm.showSubheader}
+																	onCheckedChange={(checked) =>
+																		setCreateForm((current) => ({
+																			...current,
+																			showSubheader: Boolean(checked),
+																		}))
+																	}
+																/>
+																<span className="text-xs text-muted-foreground">
+																	Include left/right subheader row
+																</span>
+															</div>
+														</div>
+													) : null}
+												</div>
+												<div className="grid gap-2 sm:grid-cols-2">
+													<Input
+														placeholder={labels.leftHeader}
+														value={createForm.leftHeader}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															leftHeader: event.target.value,
+														}))
+													}
+												/>
+												<Input
+													placeholder={labels.rightHeader}
+													value={createForm.rightHeader}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															rightHeader: event.target.value,
+															}))
+														}
+													/>
+													{createForm.headerMode === "split" ? (
+														<>
+															<Input
+																placeholder={labels.leftSubheader}
+																value={createForm.leftSubheader}
+																onChange={(event) =>
+																	setCreateForm((current) => ({
+																		...current,
+																		leftSubheader: event.target.value,
+																	}))
+																}
+															/>
+															<Input
+																placeholder={labels.rightSubheader}
+																value={createForm.rightSubheader}
+																onChange={(event) =>
+																	setCreateForm((current) => ({
+																		...current,
+																		rightSubheader: event.target.value,
+																	}))
+																}
+															/>
+														</>
+													) : null}
+												</div>
+											<div className="space-y-2">
+												<Label>Body mode</Label>
+												<select
+													className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+													value={createForm.bodyMode}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															bodyMode: event.target.value as "text" | "bullets" | "categories",
+														}))
+													}
+												>
+													<option value="bullets">Bullet points</option>
+													<option value="text">Simple text</option>
+													<option value="categories">Category + values</option>
+												</select>
+											</div>
+											{createForm.bodyMode === "text" ? (
+												<Textarea
+													rows={4}
+													placeholder={`${labels.body} (plain text)`}
+													value={createForm.text}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															text: event.target.value,
+														}))
+													}
+												/>
+											) : null}
+											{createForm.bodyMode === "bullets" ? (
+												<Textarea
+													rows={4}
+													placeholder={`${labels.body} (one per line)`}
+													value={createForm.bulletsText}
+													onChange={(event) =>
+														setCreateForm((current) => ({
+															...current,
+															bulletsText: event.target.value,
+														}))
+													}
+												/>
+											) : null}
+											{createForm.bodyMode === "categories" ? (
+												<div className="space-y-2">
+													{createForm.categories.map((row) => (
+														<div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+															<Input
+																placeholder="Category"
+																value={row.category}
+																onChange={(event) =>
+																	setCreateForm((current) => ({
+																		...current,
+																		categories: current.categories.map((entry) =>
+																			entry.id === row.id
+																				? { ...entry, category: event.target.value }
+																				: entry,
+																		),
+																	}))
+																}
+															/>
+															<Input
+																placeholder="Value 1, Value 2"
+																value={row.valuesText}
+																onChange={(event) =>
+																	setCreateForm((current) => ({
+																		...current,
+																		categories: current.categories.map((entry) =>
+																			entry.id === row.id
+																				? { ...entry, valuesText: event.target.value }
+																				: entry,
+																		),
+																	}))
+																}
+															/>
+															<Button
+																type="button"
+																variant="ghost"
+																size="icon"
+																onClick={() =>
+																	setCreateForm((current) => ({
+																		...current,
+																		categories:
+																			current.categories.length <= 1
+																				? current.categories
+																				: current.categories.filter((entry) => entry.id !== row.id),
+																	}))
+																}
+															>
+																<Trash2 className="size-4" />
+															</Button>
+														</div>
+													))}
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={() =>
+															setCreateForm((current) => ({
+																...current,
+																categories: [
+																	...current.categories,
+																	{ id: makeId(), category: "", valuesText: "" },
+																],
+															}))
+														}
+													>
+														Add category row
+													</Button>
+												</div>
+											) : null}
+										</>
+									);
+								})()}
 
 							<div className="flex justify-end gap-2 pt-2">
 								<Button type="button" variant="outline" onClick={closeCreateModal}>

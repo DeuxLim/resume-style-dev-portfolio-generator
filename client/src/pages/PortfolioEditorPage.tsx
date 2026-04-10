@@ -2480,44 +2480,46 @@ const getSectionMaxHeight = (
 
 			<div className="space-y-6">
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
-					<div className="space-y-2 lg:hidden">
-						<Label htmlFor="portfolio-editor-mobile-tab">Editor section</Label>
-						<select
-							id="portfolio-editor-mobile-tab"
-							value={activeTab}
-							onChange={(event) => setActiveTab(event.target.value)}
-							className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+					<div className="builder-sticky-subnav space-y-2 rounded-xl border border-border/60 bg-background/90 p-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/70">
+						<div className="space-y-2 lg:hidden">
+							<Label htmlFor="portfolio-editor-mobile-tab">Editor section</Label>
+							<select
+								id="portfolio-editor-mobile-tab"
+								value={activeTab}
+								onChange={(event) => setActiveTab(event.target.value)}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+							>
+								<option value="profile">Profile</option>
+								<option value="story">Story</option>
+								<option value="career">Career</option>
+								<option value="stack">Stack & Projects</option>
+								<option value="layout">Layout</option>
+								<option value="extras">Extras</option>
+							</select>
+						</div>
+						<TabsList
+							className="!h-auto hidden w-full flex-wrap justify-start gap-1 lg:flex"
 						>
-						<option value="profile">Profile</option>
-						<option value="story">Story</option>
-						<option value="career">Career</option>
-						<option value="stack">Stack & Projects</option>
-						<option value="layout">Layout</option>
-						<option value="extras">Extras</option>
-					</select>
-				</div>
-				<TabsList
-					className="!h-auto hidden w-full flex-wrap justify-start gap-1 lg:flex"
-				>
-					<TabsTrigger value="profile" className="h-9 flex-none px-4">
-						Profile
-					</TabsTrigger>
-					<TabsTrigger value="story" className="h-9 flex-none px-4">
-						Story
-					</TabsTrigger>
-					<TabsTrigger value="career" className="h-9 flex-none px-4">
-						Career
-					</TabsTrigger>
-					<TabsTrigger value="stack" className="h-9 flex-none px-4">
-						Stack & Projects
-					</TabsTrigger>
-					<TabsTrigger value="layout" className="h-9 flex-none px-4">
-						Layout
-					</TabsTrigger>
-					<TabsTrigger value="extras" className="h-9 flex-none px-4">
-						Extras
-					</TabsTrigger>
-				</TabsList>
+							<TabsTrigger value="profile" className="h-9 flex-none px-4">
+								Profile
+							</TabsTrigger>
+							<TabsTrigger value="story" className="h-9 flex-none px-4">
+								Story
+							</TabsTrigger>
+							<TabsTrigger value="career" className="h-9 flex-none px-4">
+								Career
+							</TabsTrigger>
+							<TabsTrigger value="stack" className="h-9 flex-none px-4">
+								Stack & Projects
+							</TabsTrigger>
+							<TabsTrigger value="layout" className="h-9 flex-none px-4">
+								Layout
+							</TabsTrigger>
+							<TabsTrigger value="extras" className="h-9 flex-none px-4">
+								Extras
+							</TabsTrigger>
+						</TabsList>
+					</div>
 
 				<TabsContent value="profile" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 					<Card className="v2-panel">
@@ -4243,6 +4245,15 @@ const getSectionMaxHeight = (
 					</div>
 				</SheetContent>
 			</Sheet>
+
+			{!previewOpen ? (
+				<div className="fixed right-4 bottom-24 z-30 xl:hidden">
+					<Button type="button" size="sm" className="shadow-md" onClick={() => setPreviewOpen(true)}>
+						<Eye className="size-4" />
+						Preview
+					</Button>
+				</div>
+			) : null}
 
 			{!previewOpen ? (
 				<div

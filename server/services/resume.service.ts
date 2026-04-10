@@ -42,6 +42,15 @@ type ResumeVersionRow = RowDataPacket & {
 	updated_at?: Date;
 };
 
+type ResumeVersionSummaryRow = RowDataPacket & {
+	id: number;
+	user_id: number;
+	name: string;
+	is_active: number;
+	created_at?: Date;
+	updated_at?: Date;
+};
+
 type UserLookupRow = RowDataPacket & {
 	id: number;
 	email: string;
@@ -61,14 +70,12 @@ const sanitizeVersionName = (name: string) => {
 };
 
 const isResumeTemplateKey = (value: unknown): value is ResumeTemplateKey =>
-	value === "ats_classic_v1" ||
-	value === "harvard_classic_v1" ||
 	value === "deux_modern_v1";
 
 const toSnapshotResume = (resume: ResumeRecord): ResumeRecord => ({
 	templateKey: isResumeTemplateKey(resume.templateKey)
 		? resume.templateKey
-		: "ats_classic_v1",
+		: "deux_modern_v1",
 	content: normalizeResumeContent(resume.content),
 	layout: normalizeResumeLayout(resume.layout),
 });
@@ -174,7 +181,7 @@ const ensureResumesTable = async () => {
 				CREATE TABLE IF NOT EXISTS resumes (
 					id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
 					user_id INT UNSIGNED NOT NULL UNIQUE,
-					template_key VARCHAR(60) NOT NULL DEFAULT 'ats_classic_v1',
+					template_key VARCHAR(60) NOT NULL DEFAULT 'deux_modern_v1',
 					content_json JSON NOT NULL,
 					layout_json JSON NOT NULL,
 					created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -423,7 +430,7 @@ const buildBlankResume = (user: UserLookupRow): ResumeRecord => {
 		email: user.email,
 	});
 	return {
-		templateKey: "ats_classic_v1",
+		templateKey: "deux_modern_v1",
 		content: normalizeResumeContent({
 			...starter.content,
 			header: {
@@ -437,6 +444,8 @@ const buildBlankResume = (user: UserLookupRow): ResumeRecord => {
 				linkedinUrl: "",
 				githubUrl: "",
 				photoDataUrl: "",
+				contactItems: [user.email],
+				linkItems: [],
 			},
 			summary: "",
 			experience: [],
@@ -449,6 +458,7 @@ const buildBlankResume = (user: UserLookupRow): ResumeRecord => {
 			languages: [],
 			publications: [],
 			custom: [],
+			customSections: [],
 		}),
 		layout: normalizeResumeLayout({
 			...defaultResumeLayout,
@@ -540,9 +550,9 @@ export const listResumeVersionsByUserId = async (
 	await ensureInitialResumeVersionByUserId(userId, resume);
 	await ensureResumeVersionsTable();
 	const db = getDb();
-	const [rows] = await db.query<ResumeVersionRow[]>(
+	const [rows] = await db.query<ResumeVersionSummaryRow[]>(
 		`
-			SELECT id, user_id, name, is_active, snapshot_json, created_at, updated_at
+			SELECT id, user_id, name, is_active, created_at, updated_at
 			FROM resume_versions
 			WHERE user_id = ?
 			ORDER BY is_active DESC, updated_at DESC, id DESC

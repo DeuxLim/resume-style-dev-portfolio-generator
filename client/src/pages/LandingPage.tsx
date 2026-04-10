@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import PortfolioMiniPreview from "@/components/Landing/PortfolioMiniPreview";
 import { useSession } from "@/hooks/useSession";
+import { useSampleResumePdf } from "@/hooks/useSampleResumePdf";
 
 const workflow = [
 	{
@@ -39,6 +40,9 @@ const highlights = [
 
 export default function LandingPage() {
 	const sessionQuery = useSession();
+	const sampleResumeSrc = useSampleResumePdf(
+		"#toolbar=0&navpanes=0&scrollbar=0",
+	);
 
 	if (sessionQuery.isPending) {
 		return null;
@@ -114,7 +118,7 @@ export default function LandingPage() {
 								<div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground">
 									LIVE PREVIEW
 								</div>
-								<div className="text-sm font-medium">morganreyes.dev</div>
+								<div className="text-sm font-medium">alexramos.dev</div>
 							</div>
 							<Link
 								to="/sample"
@@ -220,7 +224,7 @@ export default function LandingPage() {
 				<div className="mt-6 overflow-hidden rounded-[1.2rem] border border-border/70 bg-card">
 					<iframe
 						title="Sample resume output"
-						src="/resume.pdf#toolbar=0&navpanes=0&scrollbar=0"
+						src={sampleResumeSrc}
 						className="h-[30rem] w-full bg-white sm:h-[40rem]"
 					/>
 				</div>

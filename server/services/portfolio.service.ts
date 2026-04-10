@@ -57,6 +57,15 @@ type PortfolioVersionRow = RowDataPacket & {
 	updated_at?: Date;
 };
 
+type PortfolioVersionSummaryRow = RowDataPacket & {
+	id: number;
+	user_id: number;
+	name: string;
+	is_active: number;
+	created_at?: Date;
+	updated_at?: Date;
+};
+
 type UserRow = RowDataPacket & {
 	id: number;
 	email: string;
@@ -246,7 +255,7 @@ const ensurePortfolioVersionsTable = async () => {
 const buildVersionName = (count: number) => `Version ${count + 1}`;
 
 const toVersionSummary = (
-	row: PortfolioVersionRow,
+	row: PortfolioVersionSummaryRow,
 ): PortfolioVersionSummary => {
 	const summary: PortfolioVersionSummary = {
 		id: row.id,
@@ -735,9 +744,9 @@ export const listPortfolioVersionsByUserId = async (
 	await ensurePortfolioVersionsTable();
 	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
-	const [rows] = await db.query<PortfolioVersionRow[]>(
+	const [rows] = await db.query<PortfolioVersionSummaryRow[]>(
 		`
-			SELECT id, user_id, name, is_active, snapshot_json, created_at, updated_at
+			SELECT id, user_id, name, is_active, created_at, updated_at
 			FROM portfolio_versions
 			WHERE user_id = ?
 			ORDER BY is_active DESC, updated_at DESC, id DESC

@@ -28,11 +28,9 @@ const sanitizeResume = (value: unknown, fallback: ResumeRecord): ResumeRecord =>
 	const input = (value ?? {}) as Partial<ResumeRecord>;
 	const templateKeyInput = input.templateKey;
 	const templateKey: ResumeTemplateKey =
-		templateKeyInput === "harvard_classic_v1" ||
-		templateKeyInput === "ats_classic_v1" ||
 		templateKeyInput === "deux_modern_v1"
 			? templateKeyInput
-			: fallback.templateKey ?? "ats_classic_v1";
+			: fallback.templateKey ?? "deux_modern_v1";
 	return {
 		templateKey,
 		content: normalizeResumeContent(

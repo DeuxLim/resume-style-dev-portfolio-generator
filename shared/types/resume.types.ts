@@ -29,6 +29,32 @@ export type ResumeHeader = {
 	linkedinUrl: string;
 	githubUrl: string;
 	photoDataUrl: string;
+	contactItems: string[];
+	linkItems: string[];
+};
+
+export type ResumeDynamicSectionHeaderMode = "none" | "split";
+export type ResumeDynamicSectionBodyMode = "text" | "bullets" | "categories";
+
+export type ResumeDynamicCategoryValue = {
+	id: string;
+	category: string;
+	values: string[];
+};
+
+export type ResumeDynamicSection = {
+	id: string;
+	title: string;
+	headerMode: ResumeDynamicSectionHeaderMode;
+	bodyMode: ResumeDynamicSectionBodyMode;
+	showSubheader: boolean;
+	leftHeader: string;
+	rightHeader: string;
+	leftSubheader: string;
+	rightSubheader: string;
+	text: string;
+	bullets: string[];
+	categories: ResumeDynamicCategoryValue[];
 };
 
 export type ResumeExperienceItem = {
@@ -82,6 +108,7 @@ export type ResumeContent = {
 	languages: string[];
 	publications: ResumeStructuredListItem[];
 	custom: ResumeStructuredListItem[];
+	customSections: ResumeDynamicSection[];
 };
 
 export type ResumeLayout = {

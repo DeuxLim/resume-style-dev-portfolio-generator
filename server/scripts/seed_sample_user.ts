@@ -344,7 +344,7 @@ const buildSampleResume = (user: {
 	email: string;
 	fullName: string;
 }): ResumeRecord => ({
-	templateKey: "ats_classic_v1",
+	templateKey: "deux_modern_v1",
 	content: {
 		header: {
 			fullName: user.fullName,
@@ -356,6 +356,12 @@ const buildSampleResume = (user: {
 			linkedinUrl: "https://www.linkedin.com/in/avery-kim-dev/",
 			githubUrl: "https://github.com/averykim-dev",
 			photoDataUrl: "",
+			contactItems: ["Seattle, WA", "+1 (206) 555-0198", user.email],
+			linkItems: [
+				"https://github.com/averykim-dev",
+				"https://www.linkedin.com/in/avery-kim-dev/",
+				`https://${user.username}.dev`,
+			],
 		},
 		summary:
 			"Senior full-stack engineer focused on reliable product delivery. I build maintainable Laravel and React systems, improve release confidence through observability, and ship measurable user-impact improvements with cross-functional teams.",
@@ -475,6 +481,7 @@ const buildSampleResume = (user: {
 		languages: [],
 		publications: [],
 		custom: [],
+		customSections: [],
 	},
 	layout: {
 		...defaultResumeLayout,

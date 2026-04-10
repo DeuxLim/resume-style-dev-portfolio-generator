@@ -1,6 +1,9 @@
 import SamplePageToggle from "@/components/Landing/SamplePageToggle";
+import { useSampleResumePdf } from "@/hooks/useSampleResumePdf";
 
 export default function SampleResumePage() {
+	const sampleResumeSrc = useSampleResumePdf("#toolbar=1&navpanes=0");
+
 	return (
 		<main className="space-y-4 pb-5 sm:space-y-5 sm:pb-6">
 			<section className="v2-panel p-4 sm:p-5">
@@ -18,7 +21,7 @@ export default function SampleResumePage() {
 			<section className="overflow-hidden rounded-[1.2rem] border border-border/70 bg-card">
 				<iframe
 					title="Sample resume output"
-					src="/resume.pdf#toolbar=1&navpanes=0"
+					src={sampleResumeSrc}
 					className="h-[calc(100vh-16rem)] min-h-[40rem] w-full bg-white"
 				/>
 			</section>
